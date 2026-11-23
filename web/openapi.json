@@ -42,7 +42,9 @@
     "required": [
      "name",
      "path",
-     "exists"
+     "exists",
+     "free_bytes",
+     "total_bytes"
     ],
     "title": "Folder",
     "type": "object"
@@ -93,7 +95,9 @@
      }
     },
     "required": [
-     "items"
+     "items",
+     "next",
+     "total"
     ],
     "title": "Page[TakeOut]",
     "type": "object"
@@ -229,7 +233,9 @@
     "required": [
      "name",
      "url",
-     "ok"
+     "ok",
+     "version",
+     "detail"
     ],
     "title": "ServiceStatus",
     "type": "object"
@@ -339,9 +345,12 @@
     },
     "required": [
      "version",
+     "commit",
      "python",
      "platform",
-     "started_at"
+     "started_at",
+     "folders",
+     "services"
     ],
     "title": "SystemInfo",
     "type": "object"

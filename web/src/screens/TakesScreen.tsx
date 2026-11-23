@@ -49,12 +49,8 @@ export function TakesScreen() {
   const [playing, setPlaying] = useState<Take | null>(null)
   const takes = useInfiniteLoad({
     queryKey: keys.takes,
-    // The server always sends `next`, but strata-python's Page leaves it optional in the schema (a field with a
-    // default), so the generated type says `next?`; `?? null` says what is sent.
     queryFn: ({ cursor, signal }) =>
-      api
-        .get('/api/takes/page', { query: { after: cursor === undefined ? null : Number(cursor), limit: PAGE_SIZE }, signal })
-        .then(page => ({ ...page, next: page.next ?? null })),
+      api.get('/api/takes/page', { query: { after: cursor === undefined ? null : Number(cursor), limit: PAGE_SIZE }, signal }),
     itemKey: (t: Take) => String(t.id),
     ...apiPage<Take>(),
   })

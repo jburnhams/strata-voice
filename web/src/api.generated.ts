@@ -204,13 +204,13 @@ export interface components {
             /** Exists */
             exists: boolean;
             /** Free Bytes */
-            free_bytes?: number | null;
+            free_bytes: number | null;
             /** Name */
             name: string;
             /** Path */
             path: string;
             /** Total Bytes */
-            total_bytes?: number | null;
+            total_bytes: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -222,9 +222,9 @@ export interface components {
             /** Items */
             items: components["schemas"]["TakeOut"][];
             /** Next */
-            next?: string | null;
+            next: string | null;
             /** Total */
-            total?: number | null;
+            total: number | null;
         };
         /**
          * Progress
@@ -270,7 +270,7 @@ export interface components {
          */
         ServiceStatus: {
             /** Detail */
-            detail?: string | null;
+            detail: string | null;
             /** Name */
             name: string;
             /** Ok */
@@ -278,7 +278,7 @@ export interface components {
             /** Url */
             url: string;
             /** Version */
-            version?: string | null;
+            version: string | null;
         };
         /** StratavoiceSettings */
         StratavoiceSettings: {
@@ -308,15 +308,15 @@ export interface components {
          */
         SystemInfo: {
             /** Commit */
-            commit?: string | null;
+            commit: string | null;
             /** Folders */
-            folders?: components["schemas"]["Folder"][];
+            folders: components["schemas"]["Folder"][];
             /** Platform */
             platform: string;
             /** Python */
             python: string;
             /** Services */
-            services?: components["schemas"]["ServiceStatus"][];
+            services: components["schemas"]["ServiceStatus"][];
             /**
              * Started At
              * Format: date-time

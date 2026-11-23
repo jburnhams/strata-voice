@@ -74,7 +74,7 @@ export function takePage(url: string, list: Take[]): TakePage {
   const limit = Number(params.get('limit') ?? 20)
   const rest = after === null ? list : list.filter(t => t.id < Number(after))
   const items = rest.slice(0, limit)
-  return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null }
+  return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
 }
 
 const refused = (detail: string, status = 400) => HttpResponse.json({ detail, payload: null }, { status })
@@ -151,7 +151,7 @@ export const skipFails = http.post(at(paths.skip), down)
 export const consentFails = http.put(at(paths.settings), down)
 
 export const takesLoading = http.get(at(paths.takesPage), () => delay('infinite'))
-export const takesEmpty = http.get(at(paths.takesPage), () => HttpResponse.json({ items: [], next: null }))
+export const takesEmpty = http.get(at(paths.takesPage), () => HttpResponse.json({ items: [], next: null, total: null }))
 export const takesError = http.get(at(paths.takesPage), down)
 /** 50 takes, three pages of 20. */
 export const takesMany = http.get(at(paths.takesPage), ({ request }) => HttpResponse.json(takePage(request.url, manyTakes)))
