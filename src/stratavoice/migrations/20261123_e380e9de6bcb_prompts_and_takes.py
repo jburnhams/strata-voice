@@ -49,6 +49,7 @@ def upgrade() -> None:
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("device", sa.String(length=200), nullable=True),
         sa.Column("created", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("root", sa.String(length=500), server_default="", nullable=False),
         sa.ForeignKeyConstraint(["prompt_id"], ["prompts.id"], name=op.f("fk_takes_prompt_id_prompts")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_takes")),
         sqlite_autoincrement=True,

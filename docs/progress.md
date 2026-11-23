@@ -8,6 +8,8 @@
 - A take's row is flushed first for its id, the file is written atomically as `human/take_<id>.wav`, and only then is the row committed, so a failed write leaves neither. Ids never go back (`sqlite_autoincrement`), so a file name is never reused.
 - Consent is a setting (`consented_on`), checked by the server before any take is kept, so a client cannot record around it.
 - Skipping is an undoable removal on the client (`useUndoable`) over a server queue of the next ten prompts, so the next prompt shows at once while Undo is in reach.
+- A take keeps the folder it was written to (`takes.root`): the Settings hint promises earlier takes stay where they are, and with only a relative path they were looked for in the new folder. Removing a take deletes its file before its row, so a failure leaves something to retry.
+- The app has no login. It listens on 127.0.0.1, which is the intended use (one speaker, one computer); a deployment reachable from elsewhere needs an authenticating proxy (docs/deploying.md).
 - Moved to the libraries (Jonathan: "a lot of the audio components should be common UI stuff"): the microphone, recorder, WAV writer, level meter and verdict to strata-react (#303), the WAV check and test WAVs to strata-python (#50). Moving them found a bug: the old check wrote `{e or 'it ends early'}`, and an exception is always truthy, so a truncated file's sentence ended in "()". Until both are released, `pyproject.toml` takes strata-python from its PR commit and `web/package.json` takes strata-react from its PR commit (moved to each PR's review fixes).
 
 

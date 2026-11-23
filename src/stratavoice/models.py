@@ -46,8 +46,10 @@ class Prompt(Base):
 
 
 class Take(Base):
-    """One recording of a prompt: a mono PCM WAV master in the recordings folder (`path`, relative to it, so the
-    folder can move). A prompt may have several takes; the newest is the one in use, earlier ones are kept until
+    """One recording of a prompt: a mono PCM WAV master at `path` under `root`, the recordings folder it was written to.
+    The root is kept per take because changing the recordings folder in Settings leaves earlier takes where they are;
+    `path` stays relative so a folder moved by hand needs only its `root` changed. A blank root (none yet) is the
+    current folder. A prompt may have several takes; the newest is the one in use, earlier ones are kept until
     removed. Ids grow with time and are never reused (the takes list pages with `after=<id>`), hence AUTOINCREMENT."""
 
     __tablename__ = "takes"
@@ -63,3 +65,4 @@ class Take(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     device: Mapped[str | None] = mapped_column(String(200))
     created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    root: Mapped[str] = mapped_column(String(500), default="", server_default="")

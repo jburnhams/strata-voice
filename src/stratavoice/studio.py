@@ -229,9 +229,10 @@ def add_take(db: Session, prompt_id: int, data: bytes, device: str | None = None
     )
     db.add(t)
     db.flush()
+    t.root = settings.recordings_dir()
     t.path = f"human/take_{t.id:06d}.wav"
     try:
-        target = os.path.join(settings.recordings_dir(), t.path)
+        target = os.path.join(t.root, t.path)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         write_bytes_atomic(target, data)
     except BaseException:
@@ -259,37 +260,45 @@ def _take(db: Session, take_id: int) -> Take:
     return t
 
 
+def _file(t: Take) -> str:
+    """Where a take's WAV is: under the folder it was written to, which may no longer be the current one."""
+    return inside(t.root or settings.recordings_dir(), t.path)
+
+
 def take_file(db: Session, take_id: int) -> str:
     """The path of a take's WAV. KeyError (a 404) when there is no such take or its file has gone."""
     t = _take(db, take_id)
-    path = inside(settings.recordings_dir(), t.path)
+    path = _file(t)
     if not os.path.isfile(path):
         raise KeyError(f"The file of take {take_id} is missing from the recordings folder.")
     return path
 
 
 def remove_take(db: Session, take_id: int) -> TakeOut:
-    """Remove a take and its file. The speaker can always take back a recording (spec §5: export and deletion)."""
+    """Remove a take and its file. The speaker can always take back a recording (spec §5: export and deletion).
+
+    The file goes first: if it cannot be removed (a folder made read-only), the error answers and the row stays, so
+    the take is still listed and Remove can be tried again. A row whose file is already gone is just removed."""
     t = _take(db, take_id)
     gone = _take_out(t, _prompt(db, t.prompt_id))
-    path = inside(settings.recordings_dir(), t.path)
-    db.delete(t)
-    db.commit()
+    path = _file(t)
     if os.path.isfile(path):
         os.remove(path)
+    db.delete(t)
+    db.commit()
     return gone
 
 
 def manifest(db: Session) -> Iterator[dict[str, Any]]:
     """The dataset as spec §5's JSON records, one per prompt's take in use (its newest), in queue order. `audio_uri` is
-    relative to the recordings folder. Quality fields are null until scoring (step 2) fills them."""
+    relative to the recordings folder, or absolute for a take written to an earlier one. Quality fields are null until scoring (step 2) fills them."""
     newest = select(func.max(Take.id)).group_by(Take.prompt_id)
     q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).where(Take.id.in_(newest))
     for t, p in db.execute(q.order_by(Prompt.position)):
         yield {
             "id": f"take_{t.id:06d}",
             "source": "human",
-            "audio_uri": t.path,
+            "audio_uri": t.path if t.root in ("", settings.recordings_dir()) else _file(t),
             "sha256": t.sha256,
             "text": None if p.kind == "spontaneous" else p.text,
             "prompt": {"key": p.key, "text": p.text, "kind": p.kind, "source": p.source},

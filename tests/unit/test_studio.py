@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+from pathlib import Path
 
 import pytest
 from sqlalchemy.orm import Session
@@ -148,3 +149,33 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
     assert (expr_rec["requested_style"], expr_rec["elicitation"]["mode"]) == ({"label": expr.cue}, "written_label")
     assert json.loads(studio.manifest_line(phon_rec)) == phon_rec
     assert studio.manifest_line(phon_rec).endswith("}\n")
+
+
+def test_takes_stay_reachable_after_the_recordings_folder_changes(db_session: Session, consented: None, tmp_path: Path):
+    first = studio.prompts(db_session)[3]
+    old = studio.add_take(db_session, first.id, sine_wav(0.5))
+    old_path = studio.take_file(db_session, old.id)
+    settings.SETTINGS.save({"recordings_dir": str(tmp_path / "elsewhere")})  # as Settings does
+    assert studio.take_file(db_session, old.id) == old_path  # still played back from where it was written
+    (record,) = studio.manifest(db_session)
+    assert record["audio_uri"] == old_path  # absolute: it is not under the folder the manifest is relative to
+    new = studio.add_take(db_session, studio.prompts(db_session)[4].id, sine_wav(0.5))
+    assert studio.take_file(db_session, new.id).startswith(str(tmp_path / "elsewhere"))
+    studio.remove_take(db_session, old.id)
+    assert not os.path.exists(old_path)
+
+
+def test_a_file_that_cannot_be_removed_keeps_its_take(
+    db_session: Session, consented: None, monkeypatch: pytest.MonkeyPatch
+):
+    take = studio.add_take(db_session, studio.prompts(db_session)[3].id, sine_wav(0.5))
+
+    def refuse(path: str) -> None:  # a read-only folder; running as root ignores a chmod, so the refusal is stood in
+        raise PermissionError(13, "Permission denied", path)
+
+    monkeypatch.setattr(os, "remove", refuse)
+    with pytest.raises(PermissionError):
+        studio.remove_take(db_session, take.id)
+    monkeypatch.undo()
+    assert os.path.isfile(studio.take_file(db_session, take.id))  # still listed, so Remove can be tried again
+    assert studio.remove_take(db_session, take.id).id == take.id
