@@ -15,7 +15,7 @@ Cli = Callable[..., CliResult]
 @pytest.fixture
 def cli() -> Cli:
     """`cli("hello", "World", "--json")` -> CliResult(stdout, stderr, code); AssertionError on a non-zero exit unless `check=False`."""
-    from app import cli as app_cli
+    from stratavoice import cli as app_cli
 
     return lambda *args, check=True: run_cli(app_cli.main, *args, check=check)
 
@@ -23,4 +23,4 @@ def cli() -> Cli:
 @pytest.fixture
 def cli_subprocess(isolated_env: Path) -> Cli:
     """The same through a real process: the entry-point smoke test and anything that must not share this process's state."""
-    return lambda *args, check=True: run_module("app", *args, src=SRC, check=check)
+    return lambda *args, check=True: run_module("stratavoice", *args, src=SRC, check=check)

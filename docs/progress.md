@@ -1,5 +1,18 @@
 # Progress log
 
+## 2026-11-23: the studio shell, on shared recording code
+
+- Asked for: a recording studio first (prompts, then auto-crop and scoring that asks for new takes), spoken voice before written, local first with cloud models allowed for writing prompts, and strata-models hosting the models while this app orchestrates. Then: put the common code in strata-react and strata-python.
+- Capture is an AudioWorklet, not MediaRecorder: MediaRecorder writes only Opus or AAC, and training needs the samples as they were. Echo cancellation, noise suppression and automatic gain are off for the same reason. The worklet posts 2048 frames at a time (about 23 messages a second at 48 kHz) rather than every 128-frame quantum.
+- Takes upload as a raw `audio/wav` body, not multipart: one file per request, no form parsing, and the size is checked from `Content-Length` (64 MB) before the body is read. The server checks the header with `strata_python.wav.read_wav` (mono, 16 or 24-bit, 16 kHz and up, 0.3 seconds to `max_take_seconds`).
+- A take's row is flushed first for its id, the file is written atomically as `human/take_<id>.wav`, and only then is the row committed, so a failed write leaves neither. Ids never go back (`sqlite_autoincrement`), so a file name is never reused.
+- Consent is a setting (`consented_on`), checked by the server before any take is kept, so a client cannot record around it.
+- Skipping is an undoable removal on the client (`useUndoable`) over a server queue of the next ten prompts, so the next prompt shows at once while Undo is in reach.
+- A take keeps the folder it was written to (`takes.root`): the Settings hint promises earlier takes stay where they are, and with only a relative path they were looked for in the new folder. Removing a take deletes its file before its row, so a failure leaves something to retry.
+- The app has no login. It listens on 127.0.0.1, which is the intended use (one speaker, one computer); a deployment reachable from elsewhere needs an authenticating proxy (docs/deploying.md).
+- Moved to the libraries (Jonathan: "a lot of the audio components should be common UI stuff"): the microphone, recorder, WAV writer, level meter and verdict to strata-react (#303), the WAV check and test WAVs to strata-python (#50). Moving them found a bug: the old check wrote `{e or 'it ends early'}`, and an exception is always truthy, so a truncated file's sentence ended in "()". Both now come from their registries: strata-react `^1.3.4` from npm and strata-python `>=0.2.9` from PyPI (the first releases with `useRecorder` and `wav`). 0.2.9 also released main's `ApiModel` contracts, so `Page.total` and `Folder.free_bytes`/`total_bytes` are required in the schema: the web mocks send them and the takes screen's `next ?? null` is gone.
+
+
 ## 2026-11-23: onto strata-python 0.2.6 and strata-react 1.3.3, every dependency current
 
 - Asked for: the latest strata-python and strata-react, every other dependency at its latest, and the working practices that make this a good example and starting point for new apps.
@@ -25,4 +38,4 @@
 ## 2026-10-29: template extraction
 
 - Extracted the shared Python + React full-stack structure from `strata-360` and `strata-stills` into `python-app-template`.
-- Included cross-platform `oslib.py`, atomic JSON `settings.py`, FastAPI server with `landing.html` fallback and static asset mounting from `src/app/server/static/`, React 19 + Vite 7 + Tailwind v4 web app with `withBase()` reverse-proxy path resolution, hermetic pytest and Vitest suites with MSW v3, ratcheting coverage floors, and multi-OS GitHub Actions workflows (`unit.yml` and `integration.yml`).
+- Included cross-platform `oslib.py`, atomic JSON `settings.py`, FastAPI server with `landing.html` fallback and static asset mounting from `src/stratavoice/server/static/`, React 19 + Vite 7 + Tailwind v4 web app with `withBase()` reverse-proxy path resolution, hermetic pytest and Vitest suites with MSW v3, ratcheting coverage floors, and multi-OS GitHub Actions workflows (`unit.yml` and `integration.yml`).

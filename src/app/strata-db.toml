@@ -1,3 +1,0 @@
-app = "app"
-models = "app.models:Base"
-migrations = "migrations"

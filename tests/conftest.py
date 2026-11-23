@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 def client(db_env: str) -> Iterator[TestClient]:
     """The HTTP API on a fresh migrated test database. Used as a context manager so the server's lifespan runs, as
     under uvicorn: the engine is disposed when the test ends (a SQLite file left open cannot be removed on Windows)."""
-    from app.server.app import create_app
+    from stratavoice.server.app import create_app
 
     with TestClient(create_app()) as c:
         yield c

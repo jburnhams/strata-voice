@@ -3,21 +3,21 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "python-app-template"
+name = "strata-voice"
 version = "0.1.0"        # the single source of truth: `app.__version__` reads it back with importlib.metadata
-description = "Full-stack Python + React application template (FastAPI, CLI, strata-react)"
+description = "A recording studio for building a model of a person's voice (FastAPI, CLI, strata-react)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     # The shared server code (settings, web serving, CLI commands, contracts, the database, the test plugin and the gate).
     # It brings FastAPI, uvicorn and pydantic at the versions it was tested with; [db] adds SQLAlchemy, Alembic and psycopg.
     # While 0.x a minor release may break, so cap below the next minor; dependabot moves the lock inside the range.
-    "strata-python[db]>=0.2.6,<0.3",
+    "strata-python[db]>=0.2.9,<0.3",
     "tzdata; sys_platform == 'win32'",   # IANA timezone database, needed on Windows for zoneinfo
 ]
 
 [project.scripts]
-app = "app.cli:main"
+strata-voice = "stratavoice.cli:main"
 
 [dependency-groups]
 dev = [
@@ -27,14 +27,13 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/app"]
+packages = ["src/stratavoice"]
 # The React build is gitignored but must ship in the wheel: `cd web && npm run build` before `uv build`.
-artifacts = ["src/app/server/static/**"]
+artifacts = ["src/stratavoice/server/static/**"]
 
 [tool.pytest.ini_options]
-pythonpath = ["tests/utils"]
-strata_env_prefix = "APP"                 # strata-python plugin: APP_HOME and APP_DATA point into a tmp dir for every test
-strata_tuning_vars = ["APP_GREETING", "APP_STYLE"]    # removed from the environment for every test
+strata_env_prefix = "STRATAVOICE"                 # strata-python plugin: STRATAVOICE_HOME and STRATAVOICE_DATA point into a tmp dir for every test
+strata_tuning_vars = ["STRATAVOICE_RECORDINGS_DIR", "STRATAVOICE_CONSENTED_ON", "STRATAVOICE_MAX_TAKE_SECONDS"]    # removed from the environment for every test
 testpaths = ["tests/unit"]
 addopts = "-ra --timeout=300 --strict-markers --strict-config --import-mode=importlib"   # importlib: tests/unit and tests/integration may share file names
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]       # TestClient noise from the installed starlette; remove when the dependency moves on
@@ -44,7 +43,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/app"]
+source = ["src/stratavoice"]
 branch = true
 omit = ["*/__main__.py"]
 
@@ -52,7 +51,7 @@ omit = ["*/__main__.py"]
 skip_empty = true
 show_missing = false
 # Measured from the unit suite only (tests/unit). Ratchet this up as coverage improves.
-fail_under = 95
+fail_under = 99
 
 [tool.ruff]
 line-length = 120
@@ -74,4 +73,4 @@ pythonVersion = "3.11"
 typeCheckingMode = "strict"
 
 [tool.strata-db]
-file = "src/app/strata-db.toml"
+file = "src/stratavoice/strata-db.toml"

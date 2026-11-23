@@ -949,35 +949,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-app-template"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "strata-python", extra = ["db"] },
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "diff-cover" },
-    { name = "hypothesis" },
-    { name = "strata-python", extra = ["dev"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "strata-python", extras = ["db"], specifier = ">=0.2.6,<0.3" },
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "diff-cover", specifier = ">=9" },
-    { name = "hypothesis", specifier = ">=6" },
-    { name = "strata-python", extras = ["dev"] },
-]
-
-[[package]]
 name = "ruff"
 version = "0.17.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1108,7 +1079,7 @@ wheels = [
 
 [[package]]
 name = "strata-python"
-version = "0.2.6"
+version = "0.2.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -1117,9 +1088,9 @@ dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/39/68d66ff315f37836fcd90a16c7354e493a7a27d01f2e13a50242f275dc3b/strata_python-0.2.6.tar.gz", hash = "sha256:3a6ed460707b577cc76db0d1e5baccd7610300a89dfd955edae26bf0908dedb6", size = 224502, upload-time = "2026-11-23T16:06:29.693Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/49/5046e288c2082c0078bf952528bd2d0b1b1d4ea045e8d8b266f9cd11f6a9/strata_python-0.2.9.tar.gz", hash = "sha256:52a74e51617d526c07e6db3e91e541ead454ea803bb8507a16d56e7206bd3d81", size = 237713, upload-time = "2026-11-23T19:25:00.204Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/d9/48146dfe624f5c8f31025a77c1d6dea27d54aa56ea914067ba1af44d9a90/strata_python-0.2.6-py3-none-any.whl", hash = "sha256:f8b2d17df27df748fff9147066e5505c537199161a9d6e762524f2a7d6b701ef", size = 161809, upload-time = "2026-11-23T16:06:28.348Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/24/15a830bbc651f7ca285015f04ea1b146604bf7935e69f51a9eac918842aa/strata_python-0.2.9-py3-none-any.whl", hash = "sha256:699a3e81efeb92ba76624866e37baf692e24e0f55d803aa92ac2e761f320491d", size = 169919, upload-time = "2026-11-23T19:24:58.699Z" },
 ]
 
 [package.optional-dependencies]
@@ -1137,6 +1108,35 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "ty" },
+]
+
+[[package]]
+name = "strata-voice"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "strata-python", extra = ["db"] },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "diff-cover" },
+    { name = "hypothesis" },
+    { name = "strata-python", extra = ["dev"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "strata-python", extras = ["db"], specifier = ">=0.2.9,<0.3" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "diff-cover", specifier = ">=9" },
+    { name = "hypothesis", specifier = ">=6" },
+    { name = "strata-python", extras = ["dev"] },
 ]
 
 [[package]]

@@ -7,28 +7,29 @@ import { openApp, screen } from '../utils/render'
 import { server } from '../utils/server'
 
 describe('System', () => {
-  it('answers with the data disk and shows what fills it', async () => {
+  it('answers with the recordings disk and shows what fills it', async () => {
     openApp('/system')
-    expect(await screen.findByText(/^Everything is running\. The data disk is 59% full/)).toBeInTheDocument()
-    const meter = screen.getByRole('meter', { name: 'Data disk space used' })
+    expect(await screen.findByText(/^Everything is running\. The recordings disk is 59% full/)).toBeInTheDocument()
+    const meter = screen.getByRole('meter', { name: 'Recordings disk space used' })
     expect(meter).toHaveAttribute('aria-valuenow', String(512e9 - 210.4e9))
-    expect(screen.getByRole('table', { name: /in all/ })).toHaveTextContent('This app’s data')
+    expect(screen.getByRole('table', { name: /in all/ })).toHaveTextContent('Recordings')
     expect(screen.getByText('Answering')).toBeInTheDocument()
-    expect(screen.getByText('/home/ada/.app')).toBeInTheDocument()
+    expect(screen.getByText('/home/ada/.stratavoice/recordings')).toBeInTheDocument()
     expect(screen.getByText('1427b94c0ffe')).toBeInTheDocument() // the source commit the server runs
+    expect(screen.getByText(/^3, 0:\d\d of speech$/)).toBeInTheDocument()
   })
 
   it('names the threshold a nearly full disk has crossed, and what to do', async () => {
     server.use(systemNearlyFull)
     openApp('/system')
-    expect(await screen.findByText(/Free space before greetings stop saving/)).toBeInTheDocument()
+    expect(await screen.findByText(/Free space before takes stop saving/)).toBeInTheDocument()
     expect(screen.getByText('Nearly full')).toBeInTheDocument()
   })
 
   it('says so when the disk could not be read, and when the server runs from an installed package', async () => {
     server.use(systemUnread)
     openApp('/system')
-    expect(await screen.findByText('Everything is running. The data disk could not be read.')).toBeInTheDocument()
+    expect(await screen.findByText('Everything is running. The recordings disk could not be read.')).toBeInTheDocument()
     expect(screen.getByText('The disk could not be read.')).toBeInTheDocument()
     expect(screen.queryByRole('meter')).toBeNull()
     expect(screen.getByText('Installed package')).toBeInTheDocument()
@@ -36,9 +37,10 @@ describe('System', () => {
 
   it('links to settings in the app and to the API outside it', async () => {
     openApp('/system')
-    expect(
-      await screen.findByRole('link', { name: /^Settings/, description: /Change the default greeting and how greetings end/ }),
-    ).toHaveAttribute('href', '/settings')
+    expect(await screen.findByRole('link', { name: /^Settings/, description: /Change where takes are written/ })).toHaveAttribute(
+      'href',
+      '/settings',
+    )
     expect(screen.getByRole('link', { name: /API reference/ })).toHaveAttribute('href', '/api/docs')
   })
 
@@ -57,6 +59,6 @@ describe('System, when a poll fails after a good one', () => {
     openApp('/system', { client })
     expect(await screen.findByText(/These readings are from (\w+ )?08:50\./)).toBeInTheDocument()
     expect(screen.getByText('Not answering')).toBeInTheDocument()
-    expect(screen.getByRole('meter', { name: 'Data disk space used' })).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Recordings disk space used' })).toBeInTheDocument()
   })
 })

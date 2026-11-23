@@ -1,41 +1,6 @@
 {
  "components": {
   "schemas": {
-   "AppSettings": {
-    "properties": {
-     "greeting": {
-      "title": "Greeting",
-      "type": "string"
-     },
-     "style": {
-      "enum": [
-       "excited",
-       "calm"
-      ],
-      "title": "Style",
-      "type": "string"
-     }
-    },
-    "required": [
-     "greeting",
-     "style"
-    ],
-    "title": "AppSettings",
-    "type": "object"
-   },
-   "Cleared": {
-    "properties": {
-     "cleared": {
-      "title": "Cleared",
-      "type": "integer"
-     }
-    },
-    "required": [
-     "cleared"
-    ],
-    "title": "Cleared",
-    "type": "object"
-   },
    "Folder": {
     "description": "A folder the app uses, and the disk it is on (None when the folder does not exist yet).",
     "properties": {
@@ -77,33 +42,11 @@
     "required": [
      "name",
      "path",
-     "exists"
+     "exists",
+     "free_bytes",
+     "total_bytes"
     ],
     "title": "Folder",
-    "type": "object"
-   },
-   "Greeting": {
-    "description": "A formatted greeting.",
-    "properties": {
-     "greeting": {
-      "title": "Greeting",
-      "type": "string"
-     },
-     "message": {
-      "title": "Message",
-      "type": "string"
-     },
-     "name": {
-      "title": "Name",
-      "type": "string"
-     }
-    },
-    "required": [
-     "name",
-     "greeting",
-     "message"
-    ],
-    "title": "Greeting",
     "type": "object"
    },
    "HTTPValidationError": {
@@ -119,33 +62,11 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
-   "MessageIn": {
-    "properties": {
-     "greeting": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Greeting"
-     },
-     "name": {
-      "default": "World",
-      "title": "Name",
-      "type": "string"
-     }
-    },
-    "title": "MessageIn",
-    "type": "object"
-   },
-   "Page_Sent_": {
+   "Page_TakeOut_": {
     "properties": {
      "items": {
       "items": {
-       "$ref": "#/components/schemas/Sent"
+       "$ref": "#/components/schemas/TakeOut"
       },
       "title": "Items",
       "type": "array"
@@ -174,44 +95,101 @@
      }
     },
     "required": [
-     "items"
+     "items",
+     "next",
+     "total"
     ],
-    "title": "Page[Sent]",
+    "title": "Page[TakeOut]",
     "type": "object"
    },
-   "Sent": {
-    "description": "A greeting that was sent and kept. Ids grow with time and are never reused.",
+   "Progress": {
+    "description": "How far through the queue the speaker is. `seconds` counts every take kept, retries included.",
     "properties": {
-     "created": {
-      "format": "date-time",
-      "title": "Created",
-      "type": "string"
+     "prompts": {
+      "title": "Prompts",
+      "type": "integer"
      },
-     "greeting": {
-      "title": "Greeting",
-      "type": "string"
+     "recorded": {
+      "title": "Recorded",
+      "type": "integer"
+     },
+     "seconds": {
+      "title": "Seconds",
+      "type": "number"
+     },
+     "skipped": {
+      "title": "Skipped",
+      "type": "integer"
+     },
+     "takes": {
+      "title": "Takes",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "prompts",
+     "recorded",
+     "skipped",
+     "takes",
+     "seconds"
+    ],
+    "title": "Progress",
+    "type": "object"
+   },
+   "PromptOut": {
+    "description": "A prompt with how far it has got: how many takes, and whether it was skipped.",
+    "properties": {
+     "cue": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cue"
      },
      "id": {
       "title": "Id",
       "type": "integer"
      },
-     "message": {
-      "title": "Message",
+     "key": {
+      "title": "Key",
       "type": "string"
      },
-     "name": {
-      "title": "Name",
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "partition": {
+      "title": "Partition",
+      "type": "string"
+     },
+     "skipped": {
+      "title": "Skipped",
+      "type": "boolean"
+     },
+     "takes": {
+      "title": "Takes",
+      "type": "integer"
+     },
+     "text": {
+      "title": "Text",
       "type": "string"
      }
     },
     "required": [
-     "name",
-     "greeting",
-     "message",
      "id",
-     "created"
+     "key",
+     "text",
+     "kind",
+     "cue",
+     "partition",
+     "takes",
+     "skipped"
     ],
-    "title": "Sent",
+    "title": "PromptOut",
     "type": "object"
    },
    "ServiceStatus": {
@@ -255,9 +233,67 @@
     "required": [
      "name",
      "url",
-     "ok"
+     "ok",
+     "version",
+     "detail"
     ],
     "title": "ServiceStatus",
+    "type": "object"
+   },
+   "StratavoiceSettings": {
+    "properties": {
+     "consented_on": {
+      "title": "Consented On",
+      "type": "string"
+     },
+     "max_take_seconds": {
+      "maximum": 300.0,
+      "minimum": 5.0,
+      "title": "Max Take Seconds",
+      "type": "integer"
+     },
+     "recordings_dir": {
+      "title": "Recordings Dir",
+      "type": "string"
+     }
+    },
+    "required": [
+     "recordings_dir",
+     "consented_on",
+     "max_take_seconds"
+    ],
+    "title": "StratavoiceSettings",
+    "type": "object"
+   },
+   "Studio": {
+    "description": "What the studio screen needs at once: may it record, what to say next (empty when the queue is done), how far.",
+    "properties": {
+     "consented": {
+      "title": "Consented",
+      "type": "boolean"
+     },
+     "max_take_seconds": {
+      "title": "Max Take Seconds",
+      "type": "integer"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "queue": {
+      "items": {
+       "$ref": "#/components/schemas/PromptOut"
+      },
+      "title": "Queue",
+      "type": "array"
+     }
+    },
+    "required": [
+     "consented",
+     "queue",
+     "progress",
+     "max_take_seconds"
+    ],
+    "title": "Studio",
     "type": "object"
    },
    "SystemInfo": {
@@ -309,11 +345,81 @@
     },
     "required": [
      "version",
+     "commit",
      "python",
      "platform",
-     "started_at"
+     "started_at",
+     "folders",
+     "services"
     ],
     "title": "SystemInfo",
+    "type": "object"
+   },
+   "TakeOut": {
+    "description": "A kept take, with the prompt it was recorded for. Ids grow with time and are never reused.",
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "device": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Device"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "prompt_id": {
+      "title": "Prompt Id",
+      "type": "integer"
+     },
+     "prompt_text": {
+      "title": "Prompt Text",
+      "type": "string"
+     },
+     "sample_rate": {
+      "title": "Sample Rate",
+      "type": "integer"
+     },
+     "sample_width": {
+      "title": "Sample Width",
+      "type": "integer"
+     },
+     "seconds": {
+      "title": "Seconds",
+      "type": "number"
+     },
+     "size_bytes": {
+      "title": "Size Bytes",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "id",
+     "prompt_id",
+     "prompt_text",
+     "kind",
+     "seconds",
+     "sample_rate",
+     "sample_width",
+     "size_bytes",
+     "device",
+     "created"
+    ],
+    "title": "TakeOut",
     "type": "object"
    },
    "ValidationError": {
@@ -359,7 +465,7 @@
   }
  },
  "info": {
-  "title": "python-app-template",
+  "title": "strata-voice",
   "version": "0.1.0"
  },
  "openapi": "3.1.0",
@@ -384,23 +490,138 @@
     "summary": "Get Health"
    }
   },
-  "/api/hello": {
+  "/api/manifest.jsonl": {
    "get": {
-    "operationId": "get_hello_api_hello_get",
+    "operationId": "get_manifest_api_manifest_jsonl_get",
+    "responses": {
+     "200": {
+      "content": {
+       "text/plain": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Manifest"
+   }
+  },
+  "/api/prompts": {
+   "get": {
+    "operationId": "get_prompts_api_prompts_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PromptOut"
+         },
+         "title": "Response Get Prompts Api Prompts Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Prompts"
+   }
+  },
+  "/api/prompts/{prompt_id}/skip": {
+   "delete": {
+    "operationId": "delete_skip_api_prompts__prompt_id__skip_delete",
     "parameters": [
      {
-      "in": "query",
-      "name": "name",
-      "required": false,
+      "in": "path",
+      "name": "prompt_id",
+      "required": true,
       "schema": {
-       "default": "World",
-       "title": "Name",
-       "type": "string"
+       "title": "Prompt Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PromptOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Skip"
+   },
+   "post": {
+    "operationId": "post_skip_api_prompts__prompt_id__skip_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "prompt_id",
+      "required": true,
+      "schema": {
+       "title": "Prompt Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PromptOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Skip"
+   }
+  },
+  "/api/prompts/{prompt_id}/takes": {
+   "post": {
+    "operationId": "post_take_api_prompts__prompt_id__takes_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "prompt_id",
+      "required": true,
+      "schema": {
+       "title": "Prompt Id",
+       "type": "integer"
       }
      },
      {
       "in": "query",
-      "name": "greeting",
+      "name": "device",
       "required": false,
       "schema": {
        "anyOf": [
@@ -411,79 +632,16 @@
          "type": "null"
         }
        ],
-       "title": "Greeting"
+       "title": "Device"
       }
      }
     ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/Greeting"
-        }
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "summary": "Get Hello"
-   }
-  },
-  "/api/messages": {
-   "delete": {
-    "operationId": "delete_messages_api_messages_delete",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/Cleared"
-        }
-       }
-      },
-      "description": "Successful Response"
-     }
-    },
-    "summary": "Delete Messages"
-   },
-   "get": {
-    "operationId": "get_messages_api_messages_get",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "items": {
-          "$ref": "#/components/schemas/Sent"
-         },
-         "title": "Response Get Messages Api Messages Get",
-         "type": "array"
-        }
-       }
-      },
-      "description": "Successful Response"
-     }
-    },
-    "summary": "Get Messages"
-   },
-   "post": {
-    "operationId": "post_message_api_messages_post",
     "requestBody": {
      "content": {
-      "application/json": {
+      "audio/wav": {
        "schema": {
-        "$ref": "#/components/schemas/MessageIn"
+        "format": "binary",
+        "type": "string"
        }
       }
      },
@@ -494,7 +652,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/Sent"
+         "$ref": "#/components/schemas/TakeOut"
         }
        }
       },
@@ -511,104 +669,7 @@
       "description": "Validation Error"
      }
     },
-    "summary": "Post Message"
-   }
-  },
-  "/api/messages/page": {
-   "get": {
-    "operationId": "get_messages_page_api_messages_page_get",
-    "parameters": [
-     {
-      "in": "query",
-      "name": "after",
-      "required": false,
-      "schema": {
-       "anyOf": [
-        {
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "title": "After"
-      }
-     },
-     {
-      "in": "query",
-      "name": "limit",
-      "required": false,
-      "schema": {
-       "default": 20,
-       "maximum": 200,
-       "minimum": 1,
-       "title": "Limit",
-       "type": "integer"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/Page_Sent_"
-        }
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "summary": "Get Messages Page"
-   }
-  },
-  "/api/messages/{message_id}": {
-   "delete": {
-    "operationId": "delete_message_api_messages__message_id__delete",
-    "parameters": [
-     {
-      "in": "path",
-      "name": "message_id",
-      "required": true,
-      "schema": {
-       "title": "Message Id",
-       "type": "integer"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/Sent"
-        }
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "summary": "Delete Message"
+    "summary": "Post Take"
    }
   },
   "/api/settings": {
@@ -619,7 +680,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/AppSettings"
+         "$ref": "#/components/schemas/StratavoiceSettings"
         }
        }
       },
@@ -668,7 +729,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/AppSettings"
+         "$ref": "#/components/schemas/StratavoiceSettings"
         }
        }
       },
@@ -688,6 +749,24 @@
     "summary": "Put Settings"
    }
   },
+  "/api/studio": {
+   "get": {
+    "operationId": "get_studio_api_studio_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Studio"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Studio"
+   }
+  },
   "/api/system": {
    "get": {
     "operationId": "get_system_api_system_get",
@@ -704,6 +783,135 @@
      }
     },
     "summary": "Get System"
+   }
+  },
+  "/api/takes/page": {
+   "get": {
+    "operationId": "get_takes_page_api_takes_page_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Page_TakeOut_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Takes Page"
+   }
+  },
+  "/api/takes/{take_id}": {
+   "delete": {
+    "operationId": "delete_take_api_takes__take_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "take_id",
+      "required": true,
+      "schema": {
+       "title": "Take Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Take"
+   }
+  },
+  "/api/takes/{take_id}/audio": {
+   "get": {
+    "operationId": "get_take_audio_api_takes__take_id__audio_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "take_id",
+      "required": true,
+      "schema": {
+       "title": "Take Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Take Audio"
    }
   }
  }

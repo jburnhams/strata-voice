@@ -12,7 +12,7 @@ export function NotFoundScreen() {
         title={`There is nothing at ${pathname}`}
         action={
           <ButtonLink to="/" variant="default">
-            Go to greetings
+            Go to the studio
           </ButtonLink>
         }
       >

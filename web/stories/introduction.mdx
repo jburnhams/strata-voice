@@ -2,21 +2,22 @@ import { Meta } from '@storybook/addon-docs/blocks'
 
 <Meta title="Introduction" />
 
-# python-app-template
+# strata-voice
 
-The template's web app, built on [strata-react](https://github.com/jburnhams/strata-react). Each
+The recording studio's web app, built on [strata-react](https://github.com/jburnhams/strata-react). Each
 story is a whole screen, opened through the app's own route tree at a URL, with the server put into
-one state by MSW (the same handlers the jsdom tests and the visual suite use). Use the toolbar to
-switch between light and dark.
+one state by MSW (the same handlers the jsdom tests and the visual suite use) and a fake microphone
+that sends a steady tone. Use the toolbar to switch between light and dark.
 
-- **Greetings**: `useLoad` → `DataView` → `DataTable` with the sort in the URL, `RowAction` +
-  `useUndoable` + `UndoBar` to remove, `useSelection` + `BulkBar` to remove several,
-  `Field` + `AsyncButton` + `useAsyncAction` to send, `MetricStrip` for the figures.
-- **Log**: `useInfiniteLoad` over a cursor API → `InfiniteList`.
+- **Studio**: consent first, then one prompt at a time: `Meter` for the live level, `MediaPlayer`
+  to hear the take as it was kept, `useAsyncAction` for keeping it, `useUndoable` + `UndoBar` to
+  skip, `useHotkeys` + `KeysLegend` (R, N, S), `Done` at the end of the queue.
+- **Takes**: `useInfiniteLoad` over a cursor API → `InfiniteList`, one `MediaPlayer` for the take
+  chosen, `RowAction` + `useUndoable` to remove.
 - **System**: a polled status read with `StaleNotice`, `Meter` with named thresholds,
   `CompositionBar`, `Status` words, `LinkCard`s.
-- **Settings**: `Tabs` with the tab in the URL, a form started from the server's values,
-  `ColorSchemeChoice`.
+- **Settings**: `Tabs` with the tab in the URL, a form started from the server's values, consent
+  and its withdrawal, `ColorSchemeChoice`.
 
 Every story is screenshotted in Chromium, light and dark, and compared with a committed baseline in
 CI (`npm run test:visual`). Stories tagged `no-visual` need a click to reach their state; the

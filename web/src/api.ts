@@ -1,26 +1,28 @@
-// The server's endpoints, typed from the server itself. `./app openapi` writes web/openapi.json from the
+// The server's endpoints, typed from the server itself. `./strata-voice openapi` writes web/openapi.json from the
 // FastAPI routes, and `npm run api-types` (strata-react's strata-api-types) turns it into
 // api.generated.ts, which is committed and never edited: a route or model change on the Python side
-// shows up here as a type error, and CI fails a stale file on both sides (`app openapi --check`,
+// shows up here as a type error, and CI fails a stale file on both sides (`strata-voice openapi --check`,
 // `npm run api-types:check`).
 //
 // Reads go through useLoad / useInfiniteLoad and writes through useAsyncAction; both call `api`, a
 // createTypedApi over the generated paths, so the path, its {params}, the query, the JSON body and the
 // answer are all checked. It puts the app's base before every path (the server gives every page a
 // relative <base> back to its root, so the app works behind a reverse proxy at /<prefix>/), and a
-// non-2xx answer throws HttpError with the server's own sentence (`detail`) as its `reason`.
-import { createTypedApi } from 'strata-react'
+// non-2xx answer throws HttpError with the server's own sentence (`detail`) as its `reason`. The one
+// body that is not JSON, a take's WAV, goes through `postTake`.
+import { createTypedApi, fetchJson } from 'strata-react'
 import type { paths, Schema } from './api.generated'
 
-export type Settings = Schema<'AppSettings'>
-export type Style = Settings['style']
-export type Greeting = Schema<'Greeting'>
-export type Sent = Schema<'Sent'>
-export type SentPage = Schema<'Page_Sent_'>
+export type Settings = Schema<'StratavoiceSettings'>
+export type Studio = Schema<'Studio'>
+export type Prompt = Schema<'PromptOut'>
+export type Progress = Schema<'Progress'>
+export type Take = Schema<'TakeOut'>
+export type TakePage = Schema<'Page_TakeOut_'>
 export type Folder = Schema<'Folder'>
-/** `GET /api/system`: strata-python's SystemInfo plus this app's own numbers (src/app/system.py
+/** `GET /api/system`: strata-python's SystemInfo plus this app's own numbers (src/stratavoice/system.py
  *  AppNumbers). Those are extra fields on the shared model, so the schema does not name them. */
-export type SystemStatus = Schema<'SystemInfo'> & { greetings: number; home_bytes: number }
+export type SystemStatus = Schema<'SystemInfo'> & { takes: number; seconds: number; recordings_bytes: number }
 
 export const api = createTypedApi<paths>()
 
@@ -28,23 +30,37 @@ export const api = createTypedApi<paths>()
 export const keys = {
   system: ['system'],
   settings: ['settings'],
-  messages: ['messages'],
-  log: ['messages', 'log'],
+  studio: ['studio'],
+  takes: ['takes'],
 } as const
 
-/** The styles in the order the settings form offers them, each with what it does. */
-export const styles: { value: Style; label: string; example: string }[] = [
-  { value: 'excited', label: 'Excited', example: 'Hello, Ada!' },
-  { value: 'calm', label: 'Calm', example: 'Hello, Ada.' },
-]
-
-/** The server's own limits (src/app/greet.py), checked here too so a person sees the reason before
- *  sending. The server refuses with the same sentence, which reaches the field as the error's reason. */
-export const limits = { name: 120, greeting: 60 } as const
-
-/** What is wrong with a greeting's name or word, in the server's words, or undefined when it can be sent. */
-export function greetingProblem(field: 'name' | 'greeting', value: string): string | undefined {
-  const max = limits[field]
-  const length = value.trim().length
-  return length > max ? `Use at most ${max} characters for the ${field}; this is ${length}.` : undefined
+/** Keeps a take: the WAV itself as the body (not JSON, so no base64), with the microphone's name when the browser gave one. */
+export function postTake(promptId: number, wav: Blob, device: string | null): Promise<Take> {
+  const query = device ? `?device=${encodeURIComponent(device)}` : ''
+  return fetchJson<Take>(api.url(`/api/prompts/${promptId}/takes${query}`), {
+    method: 'POST',
+    body: wav,
+    headers: { 'Content-Type': 'audio/wav' },
+  })
 }
+
+/** Where a take's WAV is served, for a player's `src`. */
+export const takeAudio = (id: number) => api.url(`/api/takes/${id}/audio`)
+
+/** Today as the server's settings write a date (YYYY-MM-DD), in the person's own time zone. */
+export function today(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+/** The curriculum's groups, in the words the studio shows above a prompt (src/stratavoice/curriculum.py). */
+const kindNames: Record<string, string> = {
+  spontaneous: 'Talk freely',
+  phonetic: 'Read aloud',
+  prosodic: 'Read with this delivery',
+  expressive: 'Read with feeling',
+  evaluation: 'Held out for testing',
+}
+
+/** A prompt's group in words; a group this build does not know yet (from a newer server) shows as the server names it. */
+export const kindName = (kind: string) => kindNames[kind] ?? kind

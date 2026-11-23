@@ -10,53 +10,60 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from strata_python.testing import CliResult
+from strata_python.testing import CliResult, sine_wav
 
 Cli = Callable[..., CliResult]  # the `cli` fixture (tests/integration/conftest.py)
 
 
 @pytest.fixture
 def server(live_app: Callable[[FastAPI], AbstractContextManager[str]]) -> Iterator[str]:
-    from app.server.app import create_app
+    from stratavoice.server.app import create_app
 
     with live_app(create_app()) as base:
         yield base
 
 
-def call(base: str, method: str, path: str, body: object = None) -> tuple[int, Any]:
-    data = None if body is None else json.dumps(body).encode()
-    req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": "application/json"})  # noqa: S310 - loopback
+def call(base: str, method: str, path: str, body: object = None, wav: bytes | None = None) -> tuple[int, Any]:
+    data, kind = (
+        (wav, "audio/wav")
+        if wav is not None
+        else (None if body is None else json.dumps(body).encode(), "application/json")
+    )
+    req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": kind})  # noqa: S310 - loopback
     try:
         with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 - loopback
-            return r.status, json.loads(r.read())
+            raw = r.read()
+            return r.status, json.loads(raw) if r.headers.get_content_type() == "application/json" else raw
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read())
 
 
-def test_greetings_sent_over_http_are_kept_and_seen_by_the_cli(server: str, cli: Cli):
+def test_a_take_posted_over_http_is_kept_played_back_and_seen_by_the_cli(server: str, cli: Cli):
     status, health = call(server, "GET", "/api/health")
     assert (status, health["ok"], health["version"]) == (200, True, "0.1.0")
-    for n in ("Ann", "Ben", "Cat"):
-        assert call(server, "POST", "/api/messages", {"name": n})[0] == 200
-    assert call(server, "DELETE", "/api/messages/2")[0] == 200
-    out = cli("messages").stdout
-    assert ("Hello, Ann!" in out, "Hello, Ben!" in out, "Hello, Cat!" in out) == (True, False, True)
-    assert call(server, "POST", "/api/messages", {"name": "Dee"})[1]["id"] == 4
-    status, page = call(server, "GET", "/api/messages/page?limit=2")
-    assert (status, [m["name"] for m in page["items"]], page["next"]) == (200, ["Dee", "Cat"], "3")
-    assert call(server, "GET", "/api/system")[1]["greetings"] == 3
+    first = call(server, "GET", "/api/studio")[1]["queue"][0]
+    assert call(server, "POST", f"/api/prompts/{first['id']}/takes", wav=sine_wav(1.0))[0] == 400  # no consent yet
+    assert call(server, "PUT", "/api/settings", {"consented_on": "2026-11-23"})[0] == 200
+
+    data = sine_wav(2.0, rate=44_100, width=3)
+    status, take = call(server, "POST", f"/api/prompts/{first['id']}/takes?device=Desk%20mic", wav=data)
+    assert (status, take["seconds"], take["sample_width"], take["device"]) == (200, 2.0, 3, "Desk mic")
+    assert call(server, "GET", f"/api/takes/{take['id']}/audio") == (200, data)
+    assert "1 take(s)" in cli("prompts").stdout
+    assert json.loads(cli("manifest").stdout)["audio"]["seconds"] == 2.0
+    assert call(server, "GET", "/api/studio")[1]["queue"][0]["id"] != first["id"]
+    assert call(server, "DELETE", f"/api/takes/{take['id']}")[0] == 200
+    assert "no takes yet" in cli("takes").stdout
 
 
 def test_errors_answer_with_the_sentence(server: str):
-    status, body = call(server, "POST", "/api/messages", {"name": "x" * 121})
-    assert (status, body) == (400, {"detail": "Use at most 120 characters for the name; this is 121.", "payload": None})
-    assert call(server, "DELETE", "/api/messages/99")[0] == 404
-    assert call(server, "PUT", "/api/settings", {"style": "loud"})[0] == 400
-
-
-def test_settings_changes_affect_later_greetings(server: str):
-    assert call(server, "PUT", "/api/settings", {"greeting": "Bonjour", "style": "calm"})[0] == 200
-    assert call(server, "GET", "/api/hello?name=Monde")[1]["message"] == "Bonjour, Monde."
+    call(server, "PUT", "/api/settings", {"consented_on": "2026-11-23"})
+    first = call(server, "GET", "/api/studio")[1]["queue"][0]["id"]
+    status, body = call(server, "POST", f"/api/prompts/{first}/takes", wav=b"not a wav at all")
+    assert status == 400
+    assert body["detail"].startswith("The recording is not a WAV file that can be read")
+    assert call(server, "DELETE", "/api/takes/99")[0] == 404
+    assert call(server, "PUT", "/api/settings", {"consented_on": "soon"})[0] == 400
 
 
 def test_a_reload_on_any_screen_gets_the_app(server: str):
