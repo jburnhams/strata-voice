@@ -2,29 +2,30 @@
 
 ## 1. Goal
 
-Provide a clean, minimal starting point for full-stack local-first Python + React applications with the exact build, test, coverage-gate and multi-OS CI setup proven in `strata-360` and `strata-stills`.
+Capture a person's voice well enough to build a model of it: spoken first, written later. The material is mostly text archives with some audio. Step one is a recording studio that asks for the right sentences, keeps every take as a lossless master, and (in later steps) crops, recognises and scores each take so it can ask again for the ones that fall short.
+
+Constraints: local first. The takes never leave the speaker's computer. Cloud models (Claude, OpenAI, Gemini) may write prompts; recognition and scoring run locally. Model hosting and evaluation belong to [strata-models](https://github.com/jburnhams/strata-models); this app orchestrates (asks for prompts, sends takes to be scored, decides what to ask for next).
 
 ## 2. Architecture
 
-- **Python CLI and HTTP server (`src/app/`)**:
-  Everything shared (settings files, the web server's common routes and error answers, the CLI's common commands, the database plumbing, the test fixtures and the gate) is [strata-python](https://github.com/jburnhams/strata-python); this package is the app's own declarations and logic.
-  - `cli.py`: command-line interface (`doctor`, `hello`, `messages`, `set`, `serve`, `openapi`), invoked as `uv run app` (the `app` console script from `pyproject.toml`; `./app` and `app.cmd` wrap it).
-  - `server/app.py`: FastAPI application: strata-python's health, settings, system and docs routes and error answers, the app's typed `/api/*` routes, and the built React single-page app at every other path (falling back to `server/landing.html` when `web/` has not been built yet).
-  - `settings.py`: the app's settings declared on strata-python's `Settings` (`~/.app/settings.json`, `APP_HOME` override, a choice typed as an enum in the API).
-  - `models.py`, `migrations/`, `strata-db.toml`, `db.py`: the records (one SQLAlchemy table), their Alembic revisions and where the database is (a configured URL, else SQLite in the app home).
-  - `greet.py`: the "Hello, world!" business logic: formatting, and sending, listing, paging (a cursor, ids never reused) and removing kept greetings, answered as `ApiModel`s.
-  - `system.py`: the app's own numbers on the shared System page (greetings kept, size of its home).
-- **React frontend (`web/`)**, built on [strata-react](https://github.com/jburnhams/strata-react) (components, UX patterns, the token contract and the testing and screenshot tooling):
-  - React 19, TypeScript, Vite 8, Tailwind CSS v4 with Strata's token contract (Tailwind's stock colours, sizes and radii do not compile), a palette generated from the subject (`web/src/styles/`), bundled faces.
-  - React Router with real paths (`web/src/routes.tsx`, one tree shared by the app, the tests and the stories); URL state for sort and tabs. The server answers every page path with the app and a relative `<base>`, so one build works at `/` or behind a reverse proxy at `/<subpath>/` (`web.add_web` on the server, strata-react's `appBase()` and `createTypedApi` in the browser).
-  - Types from the server: `./app openapi` writes `web/openapi.json`, strata-react's `strata-api-types` writes `web/src/api.generated.ts`, and `createTypedApi<paths>()` checks every path, parameter, body and answer against it.
-  - Server data through TanStack Query (`useLoad`, `useInfiniteLoad` with `apiPage`), shown through `DataView`/`InfiniteList` so loading, empty and error states cannot be left out; writes through `useAsyncAction` with `validate` for field messages.
-  - Biome and oxlint (with type information) lint the web code, as in the libraries.
+- **Python CLI and HTTP server (`src/stratavoice/`)** on [strata-python](https://github.com/jburnhams/strata-python), which provides settings, the server skeleton and error answers, `/api/system`, the database layer, the CLI's common commands, the test fixtures, the gate and the WAV check (`strata_python.wav`).
+  - `cli.py`: `doctor`, `prompts`, `takes`, `manifest`, `set`, `serve` (port 8370), `openapi`; the `strata-voice` console script.
+  - `server/app.py`: the studio's typed `/api/*` routes (studio state, prompts, raw `audio/wav` take upload, skip and unskip, a cursor-paged takes list, take audio, removal, the JSONL manifest) and the built web app at every other path.
+  - `settings.py`: `recordings_dir`, `consented_on` (the date the speaker agreed; blank withdraws), `max_take_seconds`.
+  - `models.py`, `migrations/`, `strata-db.toml`, `db.py`: prompts (key, text, kind, cue, partition, source, position, skipped) and takes (file path, rate, width, frames, size, sha256, device).
+  - `curriculum.py`: the en-GB starter set (spontaneous, phonetic, prosodic and expressive prompts, plus a held-out evaluation partition).
+  - `studio.py`: the queue (the first prompt with no take and not skipped), keeping a take (consent, then `read_wav`, then an atomic write named by the row's id), paging and removing takes, and the manifest.
+  - `system.py`: the app's numbers on the shared System page (takes, seconds of speech, size of the recordings).
+- **React web app (`web/`)** on [strata-react](https://github.com/jburnhams/strata-react):
+  - Screens: Studio (consent, the prompt, Record/Stop/Next with R, N and S, the live input level, the take played back from the server with its level verdict, undoable skip), Takes (every take, newest first, listen and undoable remove), System and Settings.
+  - Recording is strata-react's `useRecorder` (an AudioWorklet with the browser's processing off, written as 16-bit PCM WAV), `InputLevel` and `TakeLevel`; the device comes from `MicrophoneContext`, so tests, stories and screenshots use `fakeMicrophone`.
+  - Types from the server: `uv run strata-voice openapi` writes `web/openapi.json`, `npm run api-types` writes `web/src/api.generated.ts`, and `createTypedApi<paths>()` checks every call.
   - MSW handlers for every endpoint (`web/src/mocks/`) serve the jsdom tests, Storybook and the visual suite.
-  - `npm run build` outputs directly to `src/app/server/static/`.
+  - `npm run build` writes into `src/stratavoice/server/static/`.
 
 ## 3. Principles
 
-- **Hermetic tests by default**: every test run gets an isolated home and data directory outside `tmp_path`, stripped environment overrides, and a socket guard that blocks outbound network calls.
-- **Two-tier test suites**: fast unit tests (`tests/unit/`, `web/tests/unit/`) and end-to-end integration tests (`tests/integration/`, `web/tests/integration/`), with clear file ownership so parallel agent branches never conflict.
-- **Ratcheting coverage floors**: Python unit coverage (`fail_under` in `pyproject.toml`) and web combined coverage (`web/coverage-floor.json`) only ratchet up.
+- **Masters are lossless and never overwritten**: mono PCM WAV at the microphone's rate; a retry is another take, and the newest take of a prompt is the one in use.
+- **Nothing is recorded before consent**, and the consent card says what is kept, where, and how to take it back.
+- **What is heard is what was kept**: playback after a take comes from the server's copy.
+- **Hermetic tests**, real WAV bytes through real servers, and coverage floors that only ratchet up.

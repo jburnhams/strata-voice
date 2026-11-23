@@ -1,6 +1,6 @@
-// The one question: "Is the app healthy, and will its disk hold?" The read is strata-python's
+// The one question: "Is the app healthy, and will the recordings disk hold?" The read is strata-python's
 // shared GET /api/system (every strata app answers it alike: version, commit, start time, each
-// folder with its disk) plus this app's own numbers. The finding answers with the home disk's state, from the same thresholds the meter draws; then the next questions in order:
+// folder with its disk) plus this app's own numbers. The finding answers with the recordings disk's state, from the same thresholds the meter draws; then the next questions in order:
 // how full is the disk and what is it full of (a Meter with named thresholds, a CompositionBar
 // with its table), what is running (Status words, never colour alone), and where to go next
 // (LinkCards). The read is polled; a poll that fails keeps the last readings on screen and says
@@ -24,7 +24,7 @@ import {
 } from 'strata-react'
 import { api, type Folder, keys, type SystemStatus } from '../api'
 
-/** One set of thresholds for the data disk, as shares of its size, named in the app's words. */
+/** One set of thresholds for the recordings disk, as shares of its size, named in the app's words. */
 export const diskThresholds: MeterThreshold[] = [
   { at: 0.8, tone: 'warning', label: 'Filling up' },
   { at: 0.95, tone: 'danger', label: 'Nearly full' },
@@ -39,26 +39,26 @@ export function ofSize(used: number, size: number) {
 /** The disk a folder is on, in bytes: its size and what is used of it. */
 export type Disk = { size: number; used: number; free: number }
 
-/** The home folder's disk (where the settings and the SQLite database live), or undefined when the
- *  server could not read it (the folder is not made yet and nothing above it exists). */
-export function homeDisk(s: SystemStatus): Disk | undefined {
-  const home = s.folders?.find((f: Folder) => f.name === 'home')
+/** The recordings folder's disk (where takes are written), or undefined when the server could not read it
+ *  (the folder is not made yet and nothing above it exists). */
+export function recordingsDisk(s: SystemStatus): Disk | undefined {
+  const home = s.folders?.find((f: Folder) => f.name === 'recordings')
   if (home?.total_bytes == null || home.free_bytes == null) return undefined
   return { size: home.total_bytes, used: home.total_bytes - home.free_bytes, free: home.free_bytes }
 }
 
-/** The page's finding, from the disk the home folder is on. When the latest poll failed, it says so first and reads the disk as old news. */
+/** The page's finding, from the disk the recordings folder is on. When the latest poll failed, it says so first and reads the disk as old news. */
 export function describeDisk(s: SystemStatus, answering = true): string {
-  const disk = homeDisk(s)
-  if (!disk) return answering ? 'Everything is running. The data disk could not be read.' : 'The server is not answering.'
+  const disk = recordingsDisk(s)
+  if (!disk) return answering ? 'Everything is running. The recordings disk could not be read.' : 'The server is not answering.'
   const share = disk.used / disk.size
   const crossed = crossedThreshold(share, diskThresholds)
   const left = `${format.bytes(disk.free)} free`
-  if (!answering) return `The server is not answering. When last read, the data disk was ${format.percent(share)} full, with ${left}.`
-  if (!crossed) return `Everything is running. The data disk is ${format.percent(share)} full, with ${left}.`
+  if (!answering) return `The server is not answering. When last read, the recordings disk was ${format.percent(share)} full, with ${left}.`
+  if (!crossed) return `Everything is running. The recordings disk is ${format.percent(share)} full, with ${left}.`
   return crossed.tone === 'danger'
-    ? `The data disk is ${format.percent(share)} full, with ${left}. Free space before greetings stop saving.`
-    : `The data disk is ${format.percent(share)} full, with ${left}. Nothing needs doing yet.`
+    ? `The recordings disk is ${format.percent(share)} full, with ${left}. Free space before takes stop saving.`
+    : `The recordings disk is ${format.percent(share)} full, with ${left}. Nothing needs doing yet.`
 }
 
 /** One row of the Running list: a term and what it is now. */
@@ -105,22 +105,21 @@ export function SystemScreen() {
         empty={<EmptyState title="No readings">The server sent nothing to report.</EmptyState>}
       >
         {s => {
-          const disk = homeDisk(s)
-          const home = s.folders?.find(f => f.name === 'home')
+          const disk = recordingsDisk(s)
+          const home = s.folders?.find(f => f.name === 'recordings')
           return (
             <div className="grid gap-10">
               <section aria-labelledby="disk" className="grid max-w-xl gap-3">
                 <h2 id="disk" className="type-heading">
-                  Data disk
+                  Recordings disk
                 </h2>
                 <p className="type-body-sm text-muted-foreground">
-                  The app’s settings and database are in <span className="font-mono text-foreground">{home?.path ?? format.missing}</span>,
-                  on this disk.
+                  Takes are written to <span className="font-mono text-foreground">{home?.path ?? format.missing}</span>, on this disk.
                 </p>
                 {disk ? (
                   <>
                     <Meter
-                      label="Data disk space used"
+                      label="Recordings disk space used"
                       value={disk.used}
                       max={disk.size}
                       thresholds={diskThresholds}
@@ -129,8 +128,8 @@ export function SystemScreen() {
                     <CompositionBar
                       label={`${format.bytes(disk.size)} in all`}
                       parts={[
-                        { key: 'app', label: 'This app’s data', value: s.home_bytes },
-                        { key: 'other', label: 'Everything else', value: Math.max(0, disk.used - s.home_bytes) },
+                        { key: 'app', label: 'Recordings', value: s.recordings_bytes },
+                        { key: 'other', label: 'Everything else', value: Math.max(0, disk.used - s.recordings_bytes) },
                       ]}
                       total={disk.size}
                       restLabel="Free"
@@ -159,8 +158,10 @@ export function SystemScreen() {
                     <span className="tabular-nums">{s.python}</span>
                   </Fact>
                   <Fact term="Platform">{s.platform}</Fact>
-                  <Fact term="Greetings kept">
-                    <span className="tabular-nums">{format.integer(s.greetings)}</span>
+                  <Fact term="Takes kept">
+                    <span className="tabular-nums">
+                      {format.integer(s.takes)}, {format.runningTime(s.seconds)} of speech
+                    </span>
                   </Fact>
                 </dl>
               </section>
@@ -173,7 +174,7 @@ export function SystemScreen() {
                   <LinkCard
                     to="/settings"
                     title="Settings"
-                    description="Change the default greeting and how greetings end, or choose light or dark."
+                    description="Change where takes are written and the longest take, withdraw consent, or choose light or dark."
                   />
                   <LinkCard
                     href={api.url('/api/docs')}

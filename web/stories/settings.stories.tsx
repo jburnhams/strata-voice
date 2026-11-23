@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { saveSettingsFails, settingsError, settingsLoading } from '../src/mocks/handlers'
+import { saveSettingsFails, settingsError, settingsLoading, settingsNotConsented } from '../src/mocks/handlers'
 import { AppAt } from './app-at'
 
 const meta = {
@@ -12,6 +12,7 @@ type Story = StoryObj<typeof meta>
 
 export const General: Story = {}
 export const Appearance: Story = { render: () => <AppAt route="/settings?tab=appearance" /> }
+export const NotConsented: Story = { beforeEach: ({ msw }) => msw.use(settingsNotConsented) }
 export const Loading: Story = { beforeEach: ({ msw }) => msw.use(settingsLoading) }
 export const ServerError: Story = { beforeEach: ({ msw }) => msw.use(settingsError) }
 /** Saving fails; press Save settings to see it. */

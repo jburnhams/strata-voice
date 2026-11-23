@@ -18,5 +18,5 @@ Not gated. `pytest tests/integration -n auto --cov --cov-fail-under=0 --cov-repo
 
 | Area | Tests |
 | --- | --- |
-| `cli.py` | `test_cli.py`: doctor, the SQLite fallback in the app home, settings with choices, `openapi --check`, real subprocess |
-| `server/app.py` | `test_server_api.py`: health, greetings kept over HTTP and seen by the CLI, paging, error bodies, settings, a reload on any screen |
+| `cli.py` | `test_cli.py`: doctor, the queue in the SQLite fallback in the app home, settings, `openapi --check`, real subprocess |
+| `server/app.py` | `test_server_api.py`: a WAV take posted over HTTP, kept, played back and seen by the CLI; error bodies; a reload on any screen |

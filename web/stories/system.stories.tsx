@@ -24,7 +24,7 @@ export const Phone: Story = { tags: ['visual-phone'] }
 /** Puts readings taken at 08:50 into the cache, as an earlier poll would have. */
 function EarlierReadings({ children }: { children: ReactNode }) {
   const client = useQueryClient()
-  useState(() => client.setQueryData(keys.system, systemStatus, { updatedAt: Date.UTC(2026, 10, 9, 8, 50) }))
+  useState(() => client.setQueryData(keys.system, systemStatus, { updatedAt: Date.UTC(2026, 10, 23, 8, 50) }))
   return children
 }
 

@@ -4,6 +4,24 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 ## 2026-11-23
 
+**strata-voice: the recording studio shell, on shared recording code (branch `claude/project-thread-cvjjmf`)**
+Jonathan asked for a plan for a voice-model app and agreed four steps (docs/implementation-plan.md); this is step 1: a studio that shows one prompt at a time, records a lossless take in the browser, plays back what was kept, and writes a dataset manifest. Midway he asked for the common code to go into strata-react and strata-python ("a lot of the audio components should be common UI stuff"), so capture, the WAV writer, the level meter and verdict are strata-react's (jburnhams/strata-react#303) and the WAV check strata-python's (jburnhams/strata-python#50). Both are taken from their PR commits until released. The template's sample (greetings, the log screen) is gone.
+
+- Renamed from the template: `src/app` -> `src/stratavoice`, the `strata-voice` console script and launchers (`./strata-voice`, `strata-voice.cmd`), `deploy/strata-voice.service`, `STRATAVOICE_*` settings, port 8370. `pyproject.toml`: name, description, script, `[tool.strata-db]`, `strata_tuning_vars`, `fail_under` 99, `[tool.uv.sources]` for strata-python's PR commit; `tests/utils` and its `pythonpath` removed (WAVs come from `strata_python.testing.sine_wav`).
+- `src/stratavoice/settings.py`: `recordings_dir`, `consented_on`, `max_take_seconds` (`numbers=True`).
+- `src/stratavoice/models.py`, `migrations/20261123_..._prompts_and_takes.py` (**new**): prompts and takes; the greetings revision removed.
+- `src/stratavoice/curriculum.py` (**new**): the en-GB starter set and an evaluation partition.
+- `src/stratavoice/studio.py` (**new**): the queue, keeping a take (consent, `read_wav` with 0.3 s to `max_take_seconds`, an atomic write named by the row's id), paging and removing takes, the manifest. `greet.py` removed.
+- `src/stratavoice/system.py`: takes, seconds of speech and the recordings' size on the System page.
+- `src/stratavoice/server/app.py`, `landing.html`: the studio's routes; a take is a raw `audio/wav` body, refused over 64 MB from `Content-Length`.
+- `src/stratavoice/cli.py`: `prompts`, `takes`, `manifest`; `hello` and `messages` removed.
+- `web/openapi.json`, `web/src/api.generated.ts`: regenerated. `web/src/api.ts`: studio types, `postTake`, `takeAudio`, `kindName`.
+- `web/src/screens/StudioScreen.tsx`, `TakesScreen.tsx` (**new**): the studio (consent, prompt, Record/Stop/Next on R, N and S, `InputLevel`, the take played back with `TakeLevel`, undoable skip, `Done` at the end) and every take (listen, undoable remove). `SettingsScreen.tsx`, `SystemScreen.tsx`, `Layout.tsx`, `NotFoundScreen.tsx`, `routes.tsx`: the app's settings, numbers and navigation. `GreetingsScreen.tsx`, `LogScreen.tsx` removed.
+- `web/package.json`, `web/package-lock.json`: strata-react from its PR commit.
+- `web/src/mocks/*`, `web/stories/*`, `web/strata-visual.config.ts`, `web/tests/**`: handlers, fixtures, stories, route states and tests for the studio and takes; `fakeMicrophone` from `strata-react/testing`; the app's own copies of the recorder, microphone and WAV code (`web/src/audio/`, `web/src/mocks/microphone.ts`) removed once the libraries had them. `web/tests/visual/baselines/`: rewritten for the new screens.
+- `tests/unit/*`, `tests/integration/*`: the studio, server and CLI tests with real WAV bytes; `test_greet.py` and `test_audio.py` removed.
+- `README.md`, `AGENTS.md`, `docs/overview.md`, `docs/implementation-plan.md`, `docs/progress.md`, `docs/deploying.md` (the microphone needs `https://` or `localhost`), `tests/README.md`, `tests/unit/README.md`, `tests/integration/README.md`, `web/tests/README.md`: rewritten for the app.
+
 **Latest strata-python and strata-react, every dependency current, the template as the example app (branch `claude/project-thread-61o806`)**
 Jonathan asked for the template to use the latest strata-python and strata-react, for every other dependency to be at its latest, and for it to adopt the working practices that make it a good starting point for new apps. That meant taking strata-python from PyPI rather than a git source, keeping the sample's greetings in a database through `strata_python.db`, typing the API end to end, and moving the web tooling onto leaflet-node's stack (Biome + oxlint). Correction: the earlier rule that the template ships no database is superseded; greetings now live in SQLite (or Postgres) and `data_dir` is gone.
 

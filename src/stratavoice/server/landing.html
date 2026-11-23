@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strata-voice</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70}
+@media(prefers-color-scheme:dark){:root{--bg:#161618;--fg:#ececee;--mut:#9a9aa2}}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:32px 16px}h1{font-size:22px;margin:0 0 4px}.mut{color:var(--mut)}
+</style></head><body><main>
+<h1>strata-voice</h1>
+<p>The recording studio is the web app, which has not been built here yet: <code>cd web &amp;&amp; npm ci &amp;&amp; npm run build</code>, then reload.</p>
+<p class="mut" id="status"></p>
+</main><script>
+fetch("api/studio").then(r=>r.json()).then(s=>{document.getElementById('status').textContent=
+ `Server is up. ${s.progress.recorded} of ${s.progress.prompts} prompts recorded so far.`}).catch(()=>{})
+</script></body></html>

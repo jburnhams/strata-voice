@@ -27,10 +27,10 @@ CI (`.github/workflows/`): `unit.yml` (lint, unit tests with coverage on Linux f
 
 - `unit/`: fast and isolated; the database is a migrated SQLite copy per test (`db_session`, `db_env`), the HTTP API the `client` fixture; no external services or network.
 - `integration/`: the CLI (in process and as a real process) and the HTTP API over real on-disk files. Not part of the coverage gate.
-- Both suites are hermetic (the strata-python plugin, autouse): `~` and `APP_HOME` point into a fresh folder outside `tmp_path`, tuning/override variables (`APP_GREETING`, `APP_STYLE`) are removed, and any outbound (non-loopback) connection fails the test.
+- Both suites are hermetic (the strata-python plugin, autouse): `~` and `STRATAVOICE_HOME` point into a fresh folder outside `tmp_path`, the setting overrides (`STRATAVOICE_RECORDINGS_DIR`, `STRATAVOICE_CONSENTED_ON`, `STRATAVOICE_MAX_TAKE_SECONDS`) are removed, and any outbound (non-loopback) connection fails the test.
 - Fixtures from the plugin: `http_server` (a real HTTP server on loopback, scripted per test: use it for anything that makes outbound requests), `live_app` (the app under uvicorn on a real port), `db_session`/`db_engine`/`db_url`/`db_env`, and the last-resort doubles `fake_urlopen`, `fake_popen`, `fake_run`, `no_sleep` (see the testing policy in `AGENTS.md`: real requests, real databases and real programs by default). `tests/conftest.py` adds `client`.
-- `utils/`: the app's own helpers, importable by name in any test (`tests/utils` is on `pythonpath`); none yet. Tests import in importlib mode, so `unit/` and `integration/` may hold files of the same name.
-- One test file per module (`greet.py` -> `unit/test_greet.py`; add to the existing file if there is one).
+- `utils/`: none. Real WAV bytes come from `strata_python.testing.sine_wav` (a tone at a chosen rate, width and length), never a hand-written header. Tests import in importlib mode, so `unit/` and `integration/` may hold files of the same name.
+- One test file per module (`studio.py` -> `unit/test_studio.py`; add to the existing file if there is one).
 
 ## Who owns which files (so parallel branches don't conflict)
 

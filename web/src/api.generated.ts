@@ -20,15 +20,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/hello": {
+    "/api/manifest.jsonl": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Hello */
-        get: operations["get_hello_api_hello_get"];
+        /** Get Manifest */
+        get: operations["get_manifest_api_manifest_jsonl_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -37,34 +37,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/messages": {
+    "/api/prompts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Messages */
-        get: operations["get_messages_api_messages_get"];
-        put?: never;
-        /** Post Message */
-        post: operations["post_message_api_messages_post"];
-        /** Delete Messages */
-        delete: operations["delete_messages_api_messages_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/messages/page": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Messages Page */
-        get: operations["get_messages_page_api_messages_page_get"];
+        /** Get Prompts */
+        get: operations["get_prompts_api_prompts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -73,7 +54,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/messages/{message_id}": {
+    "/api/prompts/{prompt_id}/skip": {
         parameters: {
             query?: never;
             header?: never;
@@ -82,9 +63,27 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        /** Delete Message */
-        delete: operations["delete_message_api_messages__message_id__delete"];
+        /** Post Skip */
+        post: operations["post_skip_api_prompts__prompt_id__skip_post"];
+        /** Delete Skip */
+        delete: operations["delete_skip_api_prompts__prompt_id__skip_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/{prompt_id}/takes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Take */
+        post: operations["post_take_api_prompts__prompt_id__takes_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -101,6 +100,23 @@ export interface paths {
         get: operations["get_settings_api_settings_get"];
         /** Put Settings */
         put: operations["put_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/studio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Studio */
+        get: operations["get_studio_api_studio_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -125,25 +141,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/takes/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Takes Page */
+        get: operations["get_takes_page_api_takes_page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/takes/{take_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Take */
+        delete: operations["delete_take_api_takes__take_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/takes/{take_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Take Audio */
+        get: operations["get_take_audio_api_takes__take_id__audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AppSettings */
-        AppSettings: {
-            /** Greeting */
-            greeting: string;
-            /**
-             * Style
-             * @enum {string}
-             */
-            style: "excited" | "calm";
-        };
-        /** Cleared */
-        Cleared: {
-            /** Cleared */
-            cleared: number;
-        };
         /**
          * Folder
          * @description A folder the app uses, and the disk it is on (None when the folder does not exist yet).
@@ -160,60 +212,57 @@ export interface components {
             /** Total Bytes */
             total_bytes?: number | null;
         };
-        /**
-         * Greeting
-         * @description A formatted greeting.
-         */
-        Greeting: {
-            /** Greeting */
-            greeting: string;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** MessageIn */
-        MessageIn: {
-            /** Greeting */
-            greeting?: string | null;
-            /**
-             * Name
-             * @default World
-             */
-            name: string;
-        };
-        /** Page[Sent] */
-        Page_Sent_: {
+        /** Page[TakeOut] */
+        Page_TakeOut_: {
             /** Items */
-            items: components["schemas"]["Sent"][];
+            items: components["schemas"]["TakeOut"][];
             /** Next */
             next?: string | null;
             /** Total */
             total?: number | null;
         };
         /**
-         * Sent
-         * @description A greeting that was sent and kept. Ids grow with time and are never reused.
+         * Progress
+         * @description How far through the queue the speaker is. `seconds` counts every take kept, retries included.
          */
-        Sent: {
-            /**
-             * Created
-             * Format: date-time
-             */
-            created: string;
-            /** Greeting */
-            greeting: string;
+        Progress: {
+            /** Prompts */
+            prompts: number;
+            /** Recorded */
+            recorded: number;
+            /** Seconds */
+            seconds: number;
+            /** Skipped */
+            skipped: number;
+            /** Takes */
+            takes: number;
+        };
+        /**
+         * PromptOut
+         * @description A prompt with how far it has got: how many takes, and whether it was skipped.
+         */
+        PromptOut: {
+            /** Cue */
+            cue: string | null;
             /** Id */
             id: number;
-            /** Message */
-            message: string;
-            /** Name */
-            name: string;
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Partition */
+            partition: string;
+            /** Skipped */
+            skipped: boolean;
+            /** Takes */
+            takes: number;
+            /** Text */
+            text: string;
         };
         /**
          * ServiceStatus
@@ -230,6 +279,28 @@ export interface components {
             url: string;
             /** Version */
             version?: string | null;
+        };
+        /** StratavoiceSettings */
+        StratavoiceSettings: {
+            /** Consented On */
+            consented_on: string;
+            /** Max Take Seconds */
+            max_take_seconds: number;
+            /** Recordings Dir */
+            recordings_dir: string;
+        };
+        /**
+         * Studio
+         * @description What the studio screen needs at once: may it record, what to say next (empty when the queue is done), how far.
+         */
+        Studio: {
+            /** Consented */
+            consented: boolean;
+            /** Max Take Seconds */
+            max_take_seconds: number;
+            progress: components["schemas"]["Progress"];
+            /** Queue */
+            queue: components["schemas"]["PromptOut"][];
         };
         /**
          * SystemInfo
@@ -255,6 +326,35 @@ export interface components {
             version: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * TakeOut
+         * @description A kept take, with the prompt it was recorded for. Ids grow with time and are never reused.
+         */
+        TakeOut: {
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+            /** Device */
+            device: string | null;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Prompt Id */
+            prompt_id: number;
+            /** Prompt Text */
+            prompt_text: string;
+            /** Sample Rate */
+            sample_rate: number;
+            /** Sample Width */
+            sample_width: number;
+            /** Seconds */
+            seconds: number;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -300,39 +400,7 @@ export interface operations {
             };
         };
     };
-    get_hello_api_hello_get: {
-        parameters: {
-            query?: {
-                name?: string;
-                greeting?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Greeting"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_messages_api_messages_get: {
+    get_manifest_api_manifest_jsonl_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -347,45 +415,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Sent"][];
+                    "text/plain": string;
                 };
             };
         };
     };
-    post_message_api_messages_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MessageIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Sent"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_messages_api_messages_delete: {
+    get_prompts_api_prompts_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -400,49 +435,17 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Cleared"];
+                    "application/json": components["schemas"]["PromptOut"][];
                 };
             };
         };
     };
-    get_messages_page_api_messages_page_get: {
-        parameters: {
-            query?: {
-                after?: number | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_Sent_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_message_api_messages__message_id__delete: {
+    post_skip_api_prompts__prompt_id__skip_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                message_id: number;
+                prompt_id: number;
             };
             cookie?: never;
         };
@@ -454,7 +457,75 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Sent"];
+                    "application/json": components["schemas"]["PromptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_skip_api_prompts__prompt_id__skip_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prompt_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_take_api_prompts__prompt_id__takes_post: {
+        parameters: {
+            query?: {
+                device?: string | null;
+            };
+            header?: never;
+            path: {
+                prompt_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/wav": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeOut"];
                 };
             };
             /** @description Validation Error */
@@ -483,7 +554,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppSettings"];
+                    "application/json": components["schemas"]["StratavoiceSettings"];
                 };
             };
         };
@@ -509,7 +580,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppSettings"];
+                    "application/json": components["schemas"]["StratavoiceSettings"];
                 };
             };
             /** @description Validation Error */
@@ -519,6 +590,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_studio_api_studio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Studio"];
                 };
             };
         };
@@ -539,6 +630,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemInfo"];
+                };
+            };
+        };
+    };
+    get_takes_page_api_takes_page_get: {
+        parameters: {
+            query?: {
+                after?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TakeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_take_api_takes__take_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                take_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_take_audio_api_takes__take_id__audio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                take_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

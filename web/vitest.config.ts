@@ -22,7 +22,13 @@ export default mergeConfig(
         },
       ],
       // src/mocks is the test double, not the app; it is exercised by every test and story that uses it.
-      coverage: { provider: 'v8', include: ['src/**/*.{ts,tsx}'], exclude: ['src/main.tsx', 'src/mocks/**'], reporter: ['text', 'lcov'] },
+      // main.tsx is the browser entry.
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/main.tsx', 'src/mocks/**'],
+        reporter: ['text', 'lcov'],
+      },
     },
   }),
 )
