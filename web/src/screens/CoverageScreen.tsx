@@ -32,11 +32,14 @@ const group = (c: Coverage, key: string) => c.groups.find(g => g.key === key) as
 /** A unit as a person reads it: a phoneme between slashes with a word that has it, anything else as it is. */
 export function unitName(g: CoverageGroup, u: CoverageGroup['units'][number]): string {
   if (g.key === 'phoneme') return `/${u.value}/ as in ${quote(String(u.example))}` // every phoneme has its word
+  // Primary stress loud, secondary half (Da), none quiet: folding secondary into "da" would print 02, 20 and 00 as
+  // three identical "da da" rows.
   if (g.key === 'stress')
     return u.value
       .replace(/1/g, 'DA')
-      .replace(/[02]/g, 'da')
-      .replace(/(da|DA)(?=d|D)/g, '$1 ')
+      .replace(/2/g, 'Da')
+      .replace(/0/g, 'da')
+      .replace(/(da|DA|Da)(?=d|D)/g, '$1 ')
   return u.value
 }
 
@@ -133,7 +136,7 @@ function Group({ g }: { g: CoverageGroup }) {
       {g.inventory === null ? (
         <p className="type-body-sm">{format.count(g.covered, 'different one')} said so far.</p>
       ) : (
-        <Meter label={`${g.title} said at least once`} value={g.covered} max={g.inventory} detail={`${g.covered} of ${g.inventory}`} />
+        <Meter label={`${g.title} said at least once`} value={g.covered} max={g.inventory} valueText={`${g.covered} of ${g.inventory}`} />
       )}
       {least.length > 0 && (
         <table className="type-body-sm">

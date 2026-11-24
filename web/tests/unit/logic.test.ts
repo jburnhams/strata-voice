@@ -153,11 +153,11 @@ describe('the coverage finding', () => {
     expect(describeCoverage(withSounds([0, 0, 0, 0]))).toMatch(/^39 of 43 sounds said; not yet .+, .+, .+ and more\./)
   })
 
-  it('writes a phoneme with a word that has it, and a stress pattern as beats', () => {
+  it('writes a phoneme with a word that has it, and a stress pattern as beats, secondary stress apart', () => {
     expect(unitName(sounds, { value: 'ʒ', count: 0, example: 'measure' })).toBe('/ʒ/ as in “measure”')
     const stress = coverageSample.groups[2]
     expect(unitName(stress, { value: '010', count: 1, example: null })).toBe('da DA da')
-    expect(unitName(stress, { value: '102', count: 1, example: null })).toBe('DA da da')
+    expect(unitName(stress, { value: '102', count: 1, example: null })).toBe('DA da Da')
     expect(unitName(coverageSample.groups[5], { value: 'happy', count: 0, example: null })).toBe('happy')
   })
 })

@@ -2,7 +2,7 @@ import { expectOneFilledButton } from 'strata-react/testing'
 import { describe, expect, it } from 'vitest'
 import { coverageError, coverageNoEspeak, coverageNothing, writeDown, writeFails } from '../../src/mocks/handlers'
 import { openApp, screen, within } from '../utils/render'
-import { server } from '../utils/server'
+import { mock, server } from '../utils/server'
 
 describe('Coverage', () => {
   it('answers with the sounds and styles said, and lists each group least said first', async () => {
@@ -10,13 +10,15 @@ describe('Coverage', () => {
     expect(await screen.findByText(/^Every sound has been said; the least is \/ɜː\/ as in “nurse”, 2\stimes\./)).toBeInTheDocument()
     expect(screen.getByText(/5 of 23 styles said\.$/)).toBeInTheDocument()
     expect(screen.getByText(/^Over 25\srecorded prompts$/)).toBeInTheDocument()
-    expect(screen.getByRole('meter', { name: 'Phonemes said at least once' })).toHaveAttribute('aria-valuenow', '43')
+    const phonemes = screen.getByRole('meter', { name: 'Phonemes said at least once' })
+    expect(phonemes).toHaveAttribute('aria-valuenow', '43')
+    expect(phonemes).toHaveAttribute('aria-valuetext', '43 of 43')
     const styles = screen.getByRole('region', { name: 'Styles' })
     expect(within(styles).getByRole('rowheader', { name: 'happy' })).toBeInTheDocument()
     expect(within(styles).getAllByText('Not yet')).toHaveLength(10)
     const stress = screen.getByRole('region', { name: 'Stress patterns' })
     expect(within(stress).getByText(/12\sdifferent ones said so far/)).toBeInTheDocument()
-    expect(within(stress).getAllByRole('rowheader')[0]).toHaveTextContent(/^(da|DA)( (da|DA))+$/)
+    expect(within(stress).getAllByRole('rowheader')[0]).toHaveTextContent(/^(da|DA|Da)( (da|DA|Da))+$/)
     expect(screen.getByText(/^12\swritten prompts wait after the starter set/)).toBeInTheDocument()
     expectOneFilledButton()
   })
@@ -29,6 +31,18 @@ describe('Coverage', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText(/^49\swritten prompts wait after the starter set/)).toBeInTheDocument()
     expectOneFilledButton()
+  })
+
+  it('reads the counts again after a take is kept elsewhere', async () => {
+    const { user } = openApp('/coverage')
+    expect(await screen.findByText(/^Over 25\srecorded prompts$/)).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Studio' }))
+    await user.click(await screen.findByRole('button', { name: 'Record' }))
+    await user.click(await screen.findByRole('button', { name: 'Stop' }))
+    await screen.findByRole('button', { name: 'Next prompt' })
+    mock.coverage = { ...mock.coverage, prompts: 26 } // what the server would count now
+    await user.click(screen.getByRole('link', { name: 'Coverage' }))
+    expect(await screen.findByText(/^Over 26\srecorded prompts$/)).toBeInTheDocument()
   })
 
   it('says why no prompts were written when strata-models is not running', async () => {
