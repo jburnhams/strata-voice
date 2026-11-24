@@ -3,6 +3,23 @@
 // regenerate with `strata-api-types <schema> -o <this file>`; CI runs it with --check.
 
 export interface paths {
+    "/api/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Coverage */
+        get: operations["get_coverage_api_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -48,6 +65,23 @@ export interface paths {
         get: operations["get_prompts_api_prompts_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/write": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Write */
+        post: operations["post_write_api_prompts_write_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -232,6 +266,21 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * Coverage
+         * @description What the recordings cover. `prompts` counts those recorded and `seconds` what they took; `waiting` the generated
+         *     prompts still to record; `phonemised` is false when espeak is missing, so phonemes cannot be counted.
+         */
+        Coverage: {
+            /** Groups */
+            groups: components["schemas"]["Group"][];
+            /** Phonemised */
+            phonemised: boolean;
+            /** Prompts */
+            prompts: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /**
          * Folder
          * @description A folder the app uses, and the disk it is on (None when the folder does not exist yet).
          */
@@ -246,6 +295,24 @@ export interface components {
             path: string;
             /** Total Bytes */
             total_bytes: number | null;
+        };
+        /**
+         * Group
+         * @description One group of units: how many of its inventory have been said at least once (`inventory` null where the set is
+         *     open, as for pairs and stress patterns), and its units, least said first (every one of a known inventory, so the
+         *     missing ones show).
+         */
+        Group: {
+            /** Covered */
+            covered: number;
+            /** Inventory */
+            inventory: number | null;
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: components["schemas"]["UnitOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -303,8 +370,14 @@ export interface components {
             kind: string;
             /** Partition */
             partition: string;
+            /** Score */
+            score: number | null;
             /** Skipped */
             skipped: boolean;
+            /** Source */
+            source: string;
+            /** Style */
+            style: string | null;
             /** Takes */
             takes: number;
             /** Text */
@@ -330,6 +403,8 @@ export interface components {
         StratavoiceSettings: {
             /** Consented On */
             consented_on: string;
+            /** Espeak */
+            espeak: string;
             /** Max Take Seconds */
             max_take_seconds: number;
             /** Recordings Dir */
@@ -427,6 +502,18 @@ export interface components {
             /** Wer */
             wer: number | null;
         };
+        /**
+         * UnitOut
+         * @description One unit and how often it has been said; `example` is a word that has it, for a phoneme.
+         */
+        UnitOut: {
+            /** Count */
+            count: number;
+            /** Example */
+            example: string | null;
+            /** Value */
+            value: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -440,6 +527,34 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * WriteIn
+         * @description How many prompts to ask the writer for (1 to writer.MAX_COUNT).
+         */
+        WriteIn: {
+            /**
+             * Count
+             * @default 40
+             */
+            count: number;
+        };
+        /**
+         * Written
+         * @description A batch: how many prompts the writer offered, how many were kept (the rest repeated a prompt or broke a rule),
+         *     which model wrote them, what it cost when the service says, and how many generated prompts now wait.
+         */
+        Written: {
+            /** Added */
+            added: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Offered */
+            offered: number;
+            /** Waiting */
+            waiting: number;
+            /** Writer */
+            writer: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -449,6 +564,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_coverage_api_coverage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Coverage"];
+                };
+            };
+        };
+    };
     get_health_api_health_get: {
         parameters: {
             query?: never;
@@ -507,6 +642,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptOut"][];
+                };
+            };
+        };
+    };
+    post_write_api_prompts_write_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Written"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

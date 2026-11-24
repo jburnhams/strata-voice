@@ -9,7 +9,8 @@
 // mock holds, as src/stratavoice/studio.py works it out from the database, so keeping or removing a take
 // moves the queue on here too.
 import { delay, HttpResponse, http } from 'msw'
-import { type Progress, type Prompt, type Settings, type Studio, type Take, type TakePage, usable } from '../api'
+import { type Coverage, type Progress, type Prompt, type Settings, type Studio, type Take, type TakePage, usable } from '../api'
+import { coverageSample } from './coverage-sample'
 import {
   defaultSettings,
   goodScore,
@@ -22,6 +23,7 @@ import {
   silentWav,
   systemStatus,
   uncheckedScore,
+  written,
 } from './fixtures'
 
 /** What the mock server holds. Writes change it, so a test can keep a take and see the queue move on. */
@@ -29,6 +31,7 @@ export const mock = {
   settings: { ...defaultSettings } as Settings,
   prompts: initialPrompts.map(p => ({ ...p })) as Prompt[],
   takes: [...initialTakes] as Take[],
+  coverage: { ...coverageSample } as Coverage,
 }
 
 /** Back to the healthy state: call between tests and stories. */
@@ -36,6 +39,7 @@ export function resetMock() {
   mock.settings = { ...defaultSettings }
   mock.prompts = initialPrompts.map(p => ({ ...p }))
   mock.takes = [...initialTakes]
+  mock.coverage = { ...coverageSample }
 }
 
 // Matched as paths, so they answer whatever origin and base the app runs under.
@@ -55,6 +59,8 @@ export const paths = {
   accept: '/api/takes/:id/accept',
   score: '/api/takes/:id/score',
   takeAudio: '/api/takes/:id/audio',
+  coverage: '/api/coverage',
+  write: '/api/prompts/write',
 } as const
 
 const withTakes = (p: Prompt): Prompt => ({ ...p, takes: mock.takes.filter(t => t.prompt_id === p.id).length })
@@ -137,6 +143,14 @@ export const handlers = [
   http.get(at(paths.takeAudio), () => new HttpResponse(silentWav(), { headers: { 'Content-Type': 'audio/wav' } })),
   http.post(at(paths.accept), ({ params }) => accept(Number(params.id), true)),
   http.delete(at(paths.accept), ({ params }) => accept(Number(params.id), false)),
+  http.get(at(paths.coverage), () => HttpResponse.json(mock.coverage)),
+  http.post(at(paths.write), async ({ request }) => {
+    const { count = 40 } = (await request.json()) as { count?: number }
+    if (count < 1 || count > 100) return refused('Ask for between 1 and 100 prompts at a time.')
+    const added = Math.min(count, written.added)
+    mock.coverage = { ...mock.coverage, waiting: mock.coverage.waiting + added }
+    return HttpResponse.json({ ...written, offered: count, added, waiting: mock.coverage.waiting })
+  }),
   http.delete(at(paths.take), ({ params }) => {
     const found = mock.takes.find(t => t.id === Number(params.id))
     if (!found) return refused(`There is no take ${String(params.id)}.`, 404)
@@ -198,3 +212,37 @@ export const saveSettingsFails = http.put(at(paths.settings), down)
 export const settingsNotConsented = http.get(at(paths.settings), () => HttpResponse.json({ ...mock.settings, consented_on: '' }))
 /** A server installed from a wheel (no source commit) whose folders' disk could not be read. */
 export const systemUnread = http.get(at(paths.system), () => HttpResponse.json({ ...systemStatus, commit: null, folders: [] }))
+
+export const coverageLoading = http.get(at(paths.coverage), () => delay('infinite'))
+export const coverageError = http.get(at(paths.coverage), down)
+/** Nothing recorded yet: every unit of every group unsaid. */
+export const coverageNothing = http.get(at(paths.coverage), () =>
+  HttpResponse.json({
+    ...coverageSample,
+    prompts: 0,
+    waiting: 0,
+    groups: coverageSample.groups.map(g => ({
+      ...g,
+      covered: 0,
+      units: g.inventory === null ? [] : g.units.map(u => ({ ...u, count: 0 })),
+    })),
+  }),
+)
+/** espeak-ng is not installed: phonemes, pairs and stress are not counted. */
+export const coverageNoEspeak = http.get(at(paths.coverage), () =>
+  HttpResponse.json({
+    ...coverageSample,
+    phonemised: false,
+    groups: coverageSample.groups.map(g =>
+      ['phoneme', 'pair', 'stress'].includes(g.key)
+        ? { ...g, covered: 0, units: g.inventory === null ? [] : g.units.map(u => ({ ...u, count: 0 })) }
+        : g,
+    ),
+  }),
+)
+/** strata-models is not running: the writer cannot be asked. */
+export const writeDown = http.post(at(paths.write), () =>
+  refused('strata-models is not running, so no prompts can be written: start it and try again. (connection refused)', 503),
+)
+/** The server fails with no reason given. */
+export const writeFails = http.post(at(paths.write), down)

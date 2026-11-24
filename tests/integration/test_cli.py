@@ -13,6 +13,7 @@ def test_doctor_reports_the_environment(cli: Cli):
     r = cli("doctor", check=False)
     assert "strata-voice 0.1.0" in r.stdout
     assert "sqlalchemy" in r.stdout
+    assert "ok       espeak-ng" in r.stdout  # installed on every runner: phonemes are counted
     assert r.code == 0
 
 
@@ -23,6 +24,16 @@ def test_the_queue_lives_in_the_fallback_database_in_the_app_home(cli: Cli):
     assert (Path(settings.SETTINGS.home()) / "stratavoice.db").is_file()
     assert "no takes yet" in cli("takes").stdout
     assert cli("manifest").stdout == ""
+
+
+def test_coverage_of_a_fresh_studio_is_the_whole_inventory_missing(cli: Cli):
+    cov = json.loads(cli("coverage", "--json").stdout)
+    assert (cov["prompts"], cov["waiting"], cov["phonemised"]) == (0, 0, True)
+    phonemes = next(g for g in cov["groups"] if g["key"] == "phoneme")
+    assert (phonemes["covered"], phonemes["inventory"]) == (0, 43)
+    assert "ranked 0 generated prompt(s)" in cli("rank").stdout
+    listed = json.loads(cli("prompts", "--json").stdout)
+    assert {p["style"] for p in listed if p["kind"] == "expressive"} >= {"whispered", "tired"}
 
 
 def test_settings_are_viewed_and_updated_from_the_command_line(cli: Cli):

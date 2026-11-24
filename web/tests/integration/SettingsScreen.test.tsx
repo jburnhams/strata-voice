@@ -17,7 +17,7 @@ describe('Settings', () => {
     await user.type(seconds, '90')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     expect(await screen.findByText('Saved', { selector: '[role=status]' })).toBeInTheDocument()
-    expect(mock.settings).toEqual({ recordings_dir: '/home/ada/voice', max_take_seconds: 90, consented_on: '2026-11-23' })
+    expect(mock.settings).toEqual({ recordings_dir: '/home/ada/voice', max_take_seconds: 90, consented_on: '2026-11-23', espeak: '' })
   })
 
   it('says under each field what is wrong, saves nothing, and clears the message as it is fixed', async () => {

@@ -1,5 +1,17 @@
 # Progress log
 
+
+## 2026-11-24: step 3, prompts written by a cloud model and ranked by coverage
+
+- Asked for: "Next work", step 3 of the plan.
+- The spec's split (§6): an LLM proposes, a deterministic analyser decides. The writer is strata-models' new `write` role (Claude Sonnet 5.5 by default, strata-models#119), so the model choice lives with the other roles; the app sends a brief (the sounds said least, each with a word that has it, the sentence types and styles said least) and a JSON schema, and checks every candidate (3 to 30 words, no digits because the recogniser may write "23" or "twenty-three", a known kind and style). A candidate's key is a hash of its words and cue, so a prompt written twice is one prompt. Only the prompts' words leave the computer.
+- Phonemes come from espeak-ng's `en-gb-x-rp` voice, not plain `en-gb`: plain `en-gb` gives "bath" the vowel of "trap", which does not match an RP inventory. The inventory is RP's 44 less /ʊə/: espeak's RP (like today's RP) merges it into /ɔː/ ("poor" = "pour"), so it would never be said and the ranker would chase it for ever. Run on the starter set's 25 read prompts, every one of the 43 is said at least once (the least, /ɜː/ and /ɔɪ/, twice), which is why the ranker weighs how often a unit is said, not only whether.
+- The ranker is the spec's utility (§7.1) with the terms that can be measured before a model exists: each unit a prompt has is worth its group's weight over one plus the times it has been said; that is divided by the seconds the prompt costs (4 s to set up, 2.5 words a second, 2 s more with a cue), and cut by its content-word overlap with what is already recorded or ranked above it. Greedy, so a queue of ten does not all chase the same rare sound. 120 candidates rank in about 0.4 s. Weights and timings are first guesses for the pilot.
+- Ranking runs every 5 usable takes (§7.3: every 5 to 10), after a batch is written, and by `strata-voice rank`. The starter set keeps its order first, generated prompts after it.
+- Styles: the W3C EmotionML everyday categories that suit mild everyday speech, plus neutral and four stances (sarcastic, sympathetic, reassuring, whispered). The spec leaves stance against emotion open (§15); the vocabulary is versioned in the manifest (`strata-voice-everyday-1`).
+- The manifest now carries each prompt's phonemes, its style (`requested_style.category`) and the writer.
+- Not done: teacher disagreement and student error in the score (need a model), held-out generated prompts, an accent other than RP (a different espeak voice needs its own inventory), and setting `espeak` from the Settings screen (`strata-voice set espeak ...` does it).
+
 ## 2026-11-24: auto-crop and score
 
 - Asked for: step 2, prompted takes only (Jonathan has not much existing audio yet and will gather it later).

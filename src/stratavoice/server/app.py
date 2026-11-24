@@ -16,6 +16,8 @@ From strata-python: GET /api/health, GET and PUT /api/settings (consent is the `
     POST /api/takes/{id}/accept           keep a take judged `retry` anyway; DELETE takes that back
     DELETE /api/takes/{id}                remove a take and its file
     GET  /api/manifest.jsonl              the dataset manifest (spec §5 records), one take per prompt
+    GET  /api/coverage                    what the recordings cover: phonemes, pairs, stress, length, sentence, style
+    POST /api/prompts/write               have the writer add a batch of prompts ({count}), then rank the queue
 
 Every other path serves the web app (`server/static/index.html` when built with `cd web && npm run build`, else the
 plain stand-in `landing.html`), so a reload or a shared link to /takes opens that screen.
@@ -32,10 +34,10 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from strata_python import web
-from strata_python.contracts import Page
+from strata_python.contracts import ApiModel, Page
 from strata_python.db.web import DbSession, add_database
 
-from stratavoice import __version__, db, settings, studio, system
+from stratavoice import __version__, coverage, db, settings, studio, system, writer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
@@ -50,10 +52,17 @@ WAV_BODY = {
 }
 
 
+class WriteIn(ApiModel):
+    """How many prompts to ask the writer for (1 to writer.MAX_COUNT)."""
+
+    count: int = writer.DEFAULT_COUNT
+
+
 def create_app() -> FastAPI:
     app = web.base_app("strata-voice", __version__, settings.SETTINGS, commit=COMMIT)
     # A refused take is a ValueError (400) and a missing prompt or take a KeyError (404): no try/except in the routes.
-    web.add_error_handlers(app)
+    # The prompt writer ran but gave nothing usable: the models service's fault, a 502 (not running is a 503).
+    web.add_error_handlers(app, {writer.WriterFailed: 502})
     # Opened and migrated on the first request that needs it.
     records = add_database(app, db.PROJECT, default=db.default_url)
 
@@ -122,6 +131,16 @@ def create_app() -> FastAPI:
     @app.delete("/api/takes/{take_id}")
     def delete_take(take_id: int, s: DbSession) -> studio.TakeOut:
         return studio.remove_take(s, take_id)
+
+    @app.get("/api/coverage")
+    def get_coverage(s: DbSession) -> coverage.Coverage:
+        studio.seed(s)
+        return coverage.coverage(s)
+
+    @app.post("/api/prompts/write")
+    def post_write(body: WriteIn, s: DbSession) -> writer.Written:
+        studio.seed(s)
+        return writer.write(s, body.count)
 
     @app.get("/api/manifest.jsonl", response_class=PlainTextResponse)
     def get_manifest(s: DbSession) -> PlainTextResponse:

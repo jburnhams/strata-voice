@@ -7,6 +7,8 @@
   consented_on       the day the speaker agreed to be recorded (YYYY-MM-DD), blank until then. The studio records
                      nothing before it is set, and clearing it stops recording (the takes stay until removed).
   max_take_seconds   the longest take the server keeps (5 to 300): a guard against a recorder left running.
+  espeak             the espeak-ng program that phonemises prompts (phonemes.py), when it is not on the PATH as
+                     `espeak-ng` (the Windows installer puts it under Program Files). Blank looks on the PATH.
 
 The file handling, precedence, validation and the `GET`/`PUT /api/settings` routes are
 [strata_python.settings](https://github.com/jburnhams/strata-python); this module only declares the app's settings."""
@@ -26,6 +28,7 @@ SETTINGS = Settings(
         Setting("recordings_dir", default=_default_recordings, normalise=absolute_path),
         Setting("consented_on", default="", normalise=iso_date(allow_blank=True)),
         Setting("max_take_seconds", default="60", normalise=whole_between(5, 300)),
+        Setting("espeak", default=""),
     ],
     numbers=True,
 )
@@ -43,3 +46,8 @@ def consented() -> bool:
 
 def max_take_seconds() -> int:
     return SETTINGS.get_int("max_take_seconds")
+
+
+def espeak() -> str:
+    """The espeak program named in settings, or blank to look for it on the PATH."""
+    return SETTINGS.get("espeak").strip()

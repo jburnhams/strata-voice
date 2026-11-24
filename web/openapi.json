@@ -1,6 +1,38 @@
 {
  "components": {
   "schemas": {
+   "Coverage": {
+    "description": "What the recordings cover. `prompts` counts those recorded and `seconds` what they took; `waiting` the generated\nprompts still to record; `phonemised` is false when espeak is missing, so phonemes cannot be counted.",
+    "properties": {
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/Group"
+      },
+      "title": "Groups",
+      "type": "array"
+     },
+     "phonemised": {
+      "title": "Phonemised",
+      "type": "boolean"
+     },
+     "prompts": {
+      "title": "Prompts",
+      "type": "integer"
+     },
+     "waiting": {
+      "title": "Waiting",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "prompts",
+     "waiting",
+     "phonemised",
+     "groups"
+    ],
+    "title": "Coverage",
+    "type": "object"
+   },
    "Folder": {
     "description": "A folder the app uses, and the disk it is on (None when the folder does not exist yet).",
     "properties": {
@@ -47,6 +79,50 @@
      "total_bytes"
     ],
     "title": "Folder",
+    "type": "object"
+   },
+   "Group": {
+    "description": "One group of units: how many of its inventory have been said at least once (`inventory` null where the set is\nopen, as for pairs and stress patterns), and its units, least said first (every one of a known inventory, so the\nmissing ones show).",
+    "properties": {
+     "covered": {
+      "title": "Covered",
+      "type": "integer"
+     },
+     "inventory": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Inventory"
+     },
+     "key": {
+      "title": "Key",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "units": {
+      "items": {
+       "$ref": "#/components/schemas/UnitOut"
+      },
+      "title": "Units",
+      "type": "array"
+     }
+    },
+    "required": [
+     "key",
+     "title",
+     "covered",
+     "inventory",
+     "units"
+    ],
+    "title": "Group",
     "type": "object"
    },
    "HTTPValidationError": {
@@ -185,9 +261,35 @@
       "title": "Partition",
       "type": "string"
      },
+     "score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     },
      "skipped": {
       "title": "Skipped",
       "type": "boolean"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "style": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Style"
      },
      "takes": {
       "title": "Takes",
@@ -206,7 +308,10 @@
      "cue",
      "partition",
      "takes",
-     "skipped"
+     "skipped",
+     "style",
+     "source",
+     "score"
     ],
     "title": "PromptOut",
     "type": "object"
@@ -265,6 +370,10 @@
       "title": "Consented On",
       "type": "string"
      },
+     "espeak": {
+      "title": "Espeak",
+      "type": "string"
+     },
      "max_take_seconds": {
       "maximum": 300.0,
       "minimum": 5.0,
@@ -279,7 +388,8 @@
     "required": [
      "recordings_dir",
      "consented_on",
-     "max_take_seconds"
+     "max_take_seconds",
+     "espeak"
     ],
     "title": "StratavoiceSettings",
     "type": "object"
@@ -574,6 +684,37 @@
     "title": "TakeOut",
     "type": "object"
    },
+   "UnitOut": {
+    "description": "One unit and how often it has been said; `example` is a word that has it, for a phoneme.",
+    "properties": {
+     "count": {
+      "title": "Count",
+      "type": "integer"
+     },
+     "example": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Example"
+     },
+     "value": {
+      "title": "Value",
+      "type": "string"
+     }
+    },
+    "required": [
+     "value",
+     "count",
+     "example"
+    ],
+    "title": "UnitOut",
+    "type": "object"
+   },
    "ValidationError": {
     "properties": {
      "ctx": {
@@ -613,6 +754,66 @@
     ],
     "title": "ValidationError",
     "type": "object"
+   },
+   "WriteIn": {
+    "description": "How many prompts to ask the writer for (1 to writer.MAX_COUNT).",
+    "properties": {
+     "count": {
+      "default": 40,
+      "title": "Count",
+      "type": "integer"
+     }
+    },
+    "title": "WriteIn",
+    "type": "object"
+   },
+   "Written": {
+    "description": "A batch: how many prompts the writer offered, how many were kept (the rest repeated a prompt or broke a rule),\nwhich model wrote them, what it cost when the service says, and how many generated prompts now wait.",
+    "properties": {
+     "added": {
+      "title": "Added",
+      "type": "integer"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd"
+     },
+     "offered": {
+      "title": "Offered",
+      "type": "integer"
+     },
+     "waiting": {
+      "title": "Waiting",
+      "type": "integer"
+     },
+     "writer": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Writer"
+     }
+    },
+    "required": [
+     "offered",
+     "added",
+     "writer",
+     "cost_usd",
+     "waiting"
+    ],
+    "title": "Written",
+    "type": "object"
    }
   }
  },
@@ -622,6 +823,24 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/coverage": {
+   "get": {
+    "operationId": "get_coverage_api_coverage_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Coverage"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Coverage"
+   }
+  },
   "/api/health": {
    "get": {
     "operationId": "get_health_api_health_get",
@@ -680,6 +899,44 @@
      }
     },
     "summary": "Get Prompts"
+   }
+  },
+  "/api/prompts/write": {
+   "post": {
+    "operationId": "post_write_api_prompts_write_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WriteIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Written"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Write"
    }
   },
   "/api/prompts/{prompt_id}/skip": {

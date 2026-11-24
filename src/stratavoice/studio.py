@@ -9,7 +9,8 @@ that has no take and was not skipped. Retrying a prompt adds another take; the n
 earlier ones stay on disk until removed, because a master is never overwritten. Each take is then judged
 (`scoring.py`): a prompt whose takes were all judged `retry`, and not kept anyway, is back at the front of the queue,
 so the studio asks again at once. A take not judged yet, or `unchecked`, counts: the speaker is never held up by the
-models service. Choosing prompts by value comes in step 3 and changes only `next_prompt`."""
+models service. After the starter set come the prompts the writer generated (writer.py), in the order coverage.py
+ranks them, which it refreshes every few usable takes."""
 
 import datetime
 import hashlib
@@ -18,16 +19,17 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 from strata_python.contracts import ApiModel, Page
 from strata_python.files import inside, write_bytes_atomic
 from strata_python.wav import read_wav
 
-from stratavoice import curriculum, scoring, settings
+from stratavoice import coverage, curriculum, phonemes, scoring, settings
 from stratavoice.models import Prompt, Take
 
 LOCALE = "en-GB"  # the spec's first locale; one voice, one accent
+STYLE_VOCABULARY = "strata-voice-everyday-1"  # curriculum.STYLES; renamed if the list ever changes meaning
 DEVICE_MAX = 200
 MIN_TAKE_SECONDS = 0.3  # shorter than any prompt can be said in: a click on Record then Stop
 
@@ -57,6 +59,9 @@ class PromptOut(ApiModel):
     partition: str
     takes: int
     skipped: bool
+    style: str | None
+    source: str
+    score: float | None
 
 
 class TakeOut(ApiModel):
@@ -110,7 +115,7 @@ class Studio(ApiModel):
 def seed(db: Session) -> int:
     """Add the starter prompts that are not there yet (by key), after the ones that are. Returns how many were added."""
     have = set(db.scalars(select(Prompt.key)))
-    position = db.scalar(select(func.max(Prompt.position))) or 0
+    position = db.scalar(select(func.max(Prompt.position)).where(Prompt.source == "starter")) or 0
     added = 0
     for s in curriculum.STARTER:
         if s.key in have:
@@ -127,16 +132,32 @@ def seed(db: Session) -> int:
                 source="starter",
                 position=position,
                 created=_now(),
+                style=curriculum.style(s),
+                phonemes=phonemes.ipa_or_none(s.text),
             )
         )
     if added:
         db.commit()
+    _fill(db)
     return added
 
 
+def _fill(db: Session) -> None:
+    """Give prompts kept before step 3 (or while espeak was missing) their style and phonemes, once each can be had."""
+    styles = {s.key: curriculum.style(s) for s in curriculum.STARTER}
+    q = select(Prompt).where(Prompt.style.is_(None), Prompt.kind != "spontaneous", Prompt.key.in_(styles))
+    changed = False
+    for p in db.scalars(q):
+        p.style, changed = styles[p.key], True
+    if phonemes.available():
+        for p in db.scalars(select(Prompt).where(Prompt.phonemes.is_(None))):
+            p.phonemes, changed = phonemes.ipa_or_none(p.text), True
+    if changed:
+        db.commit()
+
+
 def _usable() -> ColumnElement[bool]:
-    """A take that counts for its prompt: anything but a `retry` the speaker did not keep anyway."""
-    return or_(Take.verdict.is_(None), Take.verdict != scoring.RETRY, Take.accepted)
+    return scoring.usable()
 
 
 def _take_counts(db: Session) -> dict[int, int]:
@@ -155,6 +176,9 @@ def _prompt_out(p: Prompt, takes: int) -> PromptOut:
         partition=p.partition,
         takes=takes,
         skipped=p.skipped is not None,
+        style=p.style,
+        source=p.source,
+        score=p.score,
     )
 
 
@@ -312,6 +336,8 @@ def score_take(db: Session, take_id: int) -> TakeOut:
     t = _take(db, take_id)
     p = _prompt(db, t.prompt_id)
     scoring.score(db, t, p, take_file(db, take_id))
+    if coverage.due(db):  # spec §7.3: re-rank every few recordings, not after each (the queue stays steady)
+        coverage.rank(db)
     return _take_out(t, p)
 
 
@@ -360,9 +386,12 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
             "audio_uri": t.path if t.root in ("", settings.recordings_dir()) else _file(t),
             "sha256": t.sha256,
             "text": t.transcript if p.kind == "spontaneous" else p.text,
-            "prompt": {"key": p.key, "text": p.text, "kind": p.kind, "source": p.source},
+            "prompt": {"key": p.key, "text": p.text, "kind": p.kind, "source": p.source, "writer": p.writer},
             "locale": LOCALE,
-            "requested_style": None if p.cue is None else {"label": p.cue},
+            "phonemes": p.phonemes if p.kind != "spontaneous" else None,
+            "requested_style": None
+            if p.style is None
+            else {"vocabulary": STYLE_VOCABULARY, "category": p.style, "label": p.cue},
             "observed_style": {"review_status": "unverified"},
             "elicitation": {"mode": "written_label" if p.cue else "plain_text", "demonstration_heard": False},
             "audio": {

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.orm import Session
 from strata_python.testing import sine_wav
 
-from stratavoice import curriculum, settings, studio
+from stratavoice import curriculum, phonemes, settings, studio
 
 
 @pytest.fixture
@@ -135,9 +135,10 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
         "audio_uri": f"human/take_{retry.id:06d}.wav",
         "sha256": hashlib.sha256(newest).hexdigest(),
         "text": phon.text,
-        "prompt": {"key": phon.key, "text": phon.text, "kind": "phonetic", "source": "starter"},
+        "prompt": {"key": phon.key, "text": phon.text, "kind": "phonetic", "source": "starter", "writer": None},
         "locale": "en-GB",
-        "requested_style": None,
+        "phonemes": phonemes.ipa(phon.text),  # espeak's en-GB IPA, kept on the prompt
+        "requested_style": {"vocabulary": studio.STYLE_VOCABULARY, "category": "neutral", "label": None},
         "observed_style": {"review_status": "unverified"},
         "elicitation": {"mode": "plain_text", "demonstration_heard": False},
         "audio": {"sample_rate": 16_000, "sample_width": 2, "seconds": 1.0},
@@ -158,7 +159,9 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
         },
         "partition": "train",
     }
-    assert (expr_rec["requested_style"], expr_rec["elicitation"]["mode"]) == ({"label": expr.cue}, "written_label")
+    assert (expr_rec["requested_style"]["category"], expr_rec["requested_style"]["label"]) == ("excited", expr.cue)
+    assert expr_rec["elicitation"]["mode"] == "written_label"
+    assert (spont_rec["phonemes"], spont_rec["requested_style"]) == (None, None)  # the speaker's own words and manner
     assert json.loads(studio.manifest_line(phon_rec)) == phon_rec
     assert studio.manifest_line(phon_rec).endswith("}\n")
 

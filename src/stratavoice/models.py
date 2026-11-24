@@ -27,7 +27,7 @@ class Prompt(Base):
     """Something to say. `kind` is the curriculum's group (spontaneous, phonetic, prosodic, expressive, evaluation),
     `cue` the written delivery label shown with it ("dry, amused"), `partition` where its takes go in a dataset
     (`train`, or `eval` for the held-out set a model never trains on). `source` says who wrote it (`starter` for the
-    built-in curriculum; later the prompt planner), and `position` orders the queue. A skipped prompt keeps its row,
+    built-in curriculum, `generated` for the prompt writer's), and `position` orders the queue. A skipped prompt keeps its row,
     so the skip is part of the record and can be undone."""
 
     __tablename__ = "prompts"
@@ -43,6 +43,13 @@ class Prompt(Base):
     position: Mapped[int] = mapped_column(Integer)
     created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
     skipped: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Step 3 (coverage.py, writer.py). `style` is the delivery from curriculum.STYLES (null for spontaneous talk),
+    # `phonemes` espeak's en-GB IPA of the text (phonemes.py; null when espeak was not there), `writer` the model that
+    # wrote a generated prompt (`source` is "generated"), and `score` its value per second when it was last ranked.
+    style: Mapped[str | None] = mapped_column(String(20), default=None)
+    phonemes: Mapped[str | None] = mapped_column(Text, default=None)
+    writer: Mapped[str | None] = mapped_column(String(100), default=None)
+    score: Mapped[float | None] = mapped_column(Float, default=None)
 
 
 class Take(Base):

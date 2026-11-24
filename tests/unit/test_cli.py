@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from prompts import candidate, offer
 from strata_python.testing import FakeModels, sine_wav
 from takes import heard, speech
 
@@ -101,3 +102,31 @@ def test_set_serve_and_openapi_commands(
     out = tmp_path / "openapi.json"
     assert cli.main(["openapi", "-o", str(out)]) == 0
     assert '"/api/prompts/{prompt_id}/takes"' in out.read_text(encoding="utf8")
+
+
+def test_coverage_write_and_rank_commands(capsys: pytest.CaptureFixture[str], db_env: str, models: FakeModels):
+    assert cli.main(["coverage"]) == 0
+    out = capsys.readouterr().out
+    assert "0 prompt(s) recorded, 0 generated prompt(s) waiting" in out
+    assert "Phonemes         0 of 43 said; least: p 0, b 0" in out
+    assert cli.main(["coverage", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["groups"][0]["key"] == "phoneme"
+
+    models.down = False
+    models.results["write"] = offer(candidate("Usually the treasure is a pleasure."), candidate("Is it raining yet?"))
+    assert cli.main(["write", "--count", "2"]) == 0
+    assert "fake-write offered 2, kept 2, $0.031; 2 generated prompt(s) waiting" in capsys.readouterr().out
+    models.results["write"] = offer(candidate("A third line for the queue."), cost=None)
+    assert cli.main(["write", "--count", "1"]) == 0
+    assert "kept 1; 3 generated" in capsys.readouterr().out
+
+    assert cli.main(["rank", "--show", "100"]) == 0
+    out = capsys.readouterr().out
+    assert "ranked 3 generated prompt(s)" in out
+    assert out.index("Usually the treasure") < out.index("A third line")  # its /ʒ/ is worth the most
+
+    settings.SETTINGS.save({"espeak": "no-such-espeak-program"})
+    assert cli.main(["coverage"]) == 0
+    assert "espeak-ng was not found" in capsys.readouterr().out
+    assert cli.main(["doctor"]) == 0  # optional: the studio records without it
+    assert "install espeak-ng" in capsys.readouterr().out

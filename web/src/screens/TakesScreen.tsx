@@ -73,6 +73,7 @@ export function TakesScreen() {
         } finally {
           await queryClient.invalidateQueries({ queryKey: keys.takes })
           await queryClient.invalidateQueries({ queryKey: keys.studio })
+          await queryClient.invalidateQueries({ queryKey: keys.coverage })
           await queryClient.invalidateQueries({ queryKey: keys.system })
         }
       },

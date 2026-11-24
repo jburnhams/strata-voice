@@ -3,10 +3,11 @@ from pathlib import Path
 import pytest
 import uvicorn
 from fastapi.testclient import TestClient
+from prompts import candidate, offer
 from strata_python.testing import FakeModels, assert_openapi_current, sine_wav
 from takes import heard, speech
 
-from stratavoice import __version__, curriculum
+from stratavoice import __version__, curriculum, writer
 from stratavoice.server import app as server_app
 from stratavoice.server.app import create_app
 
@@ -132,3 +133,29 @@ def test_a_take_is_judged_as_it_is_kept_and_can_be_judged_again(client: TestClie
     assert prompt["id"] not in [p["id"] for p in client.get("/api/studio").json()["queue"]]
     assert client.delete(f"/api/takes/{kept['id']}/accept").json()["accepted"] is False
     assert client.post("/api/takes/999/score").status_code == 404
+
+
+def test_coverage_and_writing_prompts(client: TestClient, models: FakeModels):
+    cov = client.get("/api/coverage").json()
+    assert (cov["prompts"], cov["waiting"], cov["phonemised"]) == (0, 0, True)
+    assert [g["key"] for g in cov["groups"]] == ["phoneme", "pair", "stress", "length", "sentence", "style"]
+
+    r = client.post("/api/prompts/write", json={"count": 2})
+    assert r.status_code == 503
+    assert r.json()["detail"].startswith("strata-models is not running, so no prompts can be written")
+    assert client.post("/api/prompts/write", json={"count": 0}).status_code == 400
+
+    models.down = False
+    models.results["write"] = {"text": "nothing useful", "json": None}
+    r = client.post("/api/prompts/write", json={"count": 2})
+    assert (r.status_code, r.json()["detail"]) == (502, "The prompt writer's answer had no list of prompts. Try again.")
+
+    models.results["write"] = offer(candidate("Is it raining yet?", "prosodic", "worried", "a worried question"))
+    done = client.post("/api/prompts/write", json={}).json()  # the default batch size
+    assert (done["added"], done["waiting"]) == (1, 1)
+    assert models.jobs[-1]["params"]["prompt"].startswith(f"Write {writer.DEFAULT_COUNT} new prompts")
+    queue = client.get("/api/prompts").json()
+    last = queue[-1]
+    assert (last["source"], last["style"], last["cue"]) == ("generated", "worried", "a worried question")
+    assert last["score"] > 0
+    assert client.get("/api/coverage").json()["waiting"] == 1

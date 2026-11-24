@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { colorSchemeScript, format } from 'strata-react'
 import { describe, expect, it } from 'vitest'
 import { crop, kindName, today, usable, verdictWord } from '../../src/api'
+import { coverageSample } from '../../src/mocks/coverage-sample'
 import {
   initialPrompts,
   makeTakes,
@@ -12,6 +13,7 @@ import {
   uncheckedScore,
 } from '../../src/mocks/fixtures'
 import { mock, studioOf, takePage } from '../../src/mocks/handlers'
+import { describeCoverage, describeWritten, unitName } from '../../src/screens/CoverageScreen'
 import { secondsProblem } from '../../src/screens/SettingsScreen'
 import { describeProgress } from '../../src/screens/StudioScreen'
 import { describeDisk, ofSize, recordingsDisk } from '../../src/screens/SystemScreen'
@@ -126,5 +128,45 @@ describe('index.html', () => {
   it('inlines the colour-scheme script ThemeProvider expects, so a dark page does not flash light', () => {
     const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')
     expect(html).toContain(`<script>${colorSchemeScript()}</script>`)
+  })
+})
+
+describe('the coverage finding', () => {
+  const sounds = coverageSample.groups[0]
+  const withSounds = (counts: number[]) => ({
+    ...coverageSample,
+    groups: coverageSample.groups.map(g =>
+      g.key === 'phoneme'
+        ? {
+            ...g,
+            covered: g.units.length - counts.filter(n => n === 0).length,
+            units: g.units.map((u, i) => ({ ...u, count: counts[i] ?? 5 })),
+          }
+        : g,
+    ),
+  })
+
+  it('names the sounds never said, three at most', () => {
+    expect(describeCoverage(withSounds([0, 0, 4]))).toBe(
+      `41 of 43 sounds said; not yet ${unitName(sounds, sounds.units[0])}, ${unitName(sounds, sounds.units[1])}. 5 of 23 styles said.`,
+    )
+    expect(describeCoverage(withSounds([0, 0, 0, 0]))).toMatch(/^39 of 43 sounds said; not yet .+, .+, .+ and more\./)
+  })
+
+  it('writes a phoneme with a word that has it, and a stress pattern as beats, secondary stress apart', () => {
+    expect(unitName(sounds, { value: 'ʒ', count: 0, example: 'measure' })).toBe('/ʒ/ as in “measure”')
+    const stress = coverageSample.groups[2]
+    expect(unitName(stress, { value: '010', count: 1, example: null })).toBe('da DA da')
+    expect(unitName(stress, { value: '102', count: 1, example: null })).toBe('DA da Da')
+    expect(unitName(coverageSample.groups[5], { value: 'happy', count: 0, example: null })).toBe('happy')
+  })
+})
+
+describe('a batch of written prompts', () => {
+  it('names the writer, or says "the writer" when the service did not', () => {
+    const w = { offered: 3, added: 1, writer: null, cost_usd: null, waiting: 1 }
+    expect(describeWritten(w)).toBe(
+      `The writer wrote 3; ${format.count(1, 'new prompt')} kept. ${format.count(1, 'written prompt')} now wait.`,
+    )
   })
 })

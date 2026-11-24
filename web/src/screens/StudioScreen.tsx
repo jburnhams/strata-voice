@@ -158,6 +158,7 @@ function Booth({ studio }: { studio: Studio }) {
         // No body: the generated type asks for `json` on every POST, and `undefined` sends none.
         await api.post('/api/prompts/{prompt_id}/skip', { path: { prompt_id: p.id }, json: undefined })
         await queryClient.invalidateQueries({ queryKey: keys.studio })
+        await queryClient.invalidateQueries({ queryKey: keys.coverage })
       },
     })
 
@@ -226,6 +227,7 @@ function PromptCard({
   const keep = useAsyncAction(async (recording: Recording) => {
     const take = await postTake(prompt.id, recording.wav, recording.device)
     await queryClient.invalidateQueries({ queryKey: keys.studio })
+    await queryClient.invalidateQueries({ queryKey: keys.coverage })
     await queryClient.invalidateQueries({ queryKey: keys.takes })
     await queryClient.invalidateQueries({ queryKey: keys.system })
     setUnsaved(null)
@@ -246,6 +248,7 @@ function PromptCard({
   const keepAnyway = useAsyncAction(async (take: Take) => {
     await api.post('/api/takes/{take_id}/accept', { path: { take_id: take.id }, json: undefined })
     await queryClient.invalidateQueries({ queryKey: keys.studio })
+    await queryClient.invalidateQueries({ queryKey: keys.coverage })
     await queryClient.invalidateQueries({ queryKey: keys.takes })
     onNext()
   })
