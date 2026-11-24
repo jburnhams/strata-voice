@@ -1079,14 +1079,18 @@ wheels = [
 
 [[package]]
 name = "strata-python"
-version = "0.2.9"
-source = { git = "https://github.com/jburnhams/strata-python?rev=52fab35a77d7c1a1557c9ed6276b5661198216f5#52fab35a77d7c1a1557c9ed6276b5661198216f5" }
+version = "0.2.14"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pytest" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "uvicorn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a2/c4/b66f382a10a87bf557e78e97c72098cc36cff301a9d69e4b970a3a2fd10c/strata_python-0.2.14.tar.gz", hash = "sha256:862829a41168c9a69071ff64a18e42130f577974e06b80fc4291bcf304b9a6b6", size = 258264, upload-time = "2026-11-24T07:29:21.659Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/3e/130cd4d096d7a8d65679b51a48696321b6bc3942208eaf3f998ca8406e91/strata_python-0.2.14-py3-none-any.whl", hash = "sha256:637bdc80979888d0a7a35a5e654e23111982ba17c6c57995c745ba74fcd0f461", size = 182671, upload-time = "2026-11-24T07:29:20.261Z" },
 ]
 
 [package.optional-dependencies]
@@ -1124,7 +1128,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "strata-python", extras = ["db"], git = "https://github.com/jburnhams/strata-python?rev=52fab35a77d7c1a1557c9ed6276b5661198216f5" },
+    { name = "strata-python", extras = ["db"], specifier = ">=0.2.14,<0.3" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
@@ -1132,7 +1136,7 @@ requires-dist = [
 dev = [
     { name = "diff-cover", specifier = ">=9" },
     { name = "hypothesis", specifier = ">=6" },
-    { name = "strata-python", extras = ["dev"], git = "https://github.com/jburnhams/strata-python?rev=52fab35a77d7c1a1557c9ed6276b5661198216f5" },
+    { name = "strata-python", extras = ["dev"] },
 ]
 
 [[package]]
