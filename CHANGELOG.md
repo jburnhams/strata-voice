@@ -6,9 +6,9 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 **strata-voice: no free-talk prompts (branch `claude/project-thread-cvjjmf`)**
 Jonathan does not want "talk freely" prompts, so the starter set's spontaneous group is removed and every prompt is read from its text. The prompt writer already wrote only phonetic, prosodic and expressive prompts.
-- `src/stratavoice/curriculum.py`: the `spont-*` seeds and the `spontaneous` kind removed; `style()` always gives one.
-- `src/stratavoice/studio.py`: `seed` drops starter prompts the curriculum no longer has unless they have a take; the manifest's text and phonemes are always the prompt's.
-- `src/stratavoice/scoring.py`, `coverage.py`, `pilot.py`, `models.py`: the free-talk branches (no WER, the transcript as text) removed.
+- `src/stratavoice/curriculum.py`: the `spont-*` seeds removed from the starter set; `FREE_TALK` names their kind for a database that still holds them; `style()` always gives one.
+- `src/stratavoice/studio.py`: `seed` drops starter prompts the curriculum no longer has, or, when they have takes, keeps them skipped so the studio never offers them again (a take judged `retry` would otherwise send one back to the queue; Codex review).
+- `src/stratavoice/scoring.py`, `coverage.py`, `studio.py`'s manifest: a take of an old free-talk prompt keeps its handling (no word check, its transcript as its text and coverage), so recordings already made still export correctly (Codex review). `pilot.py`, `models.py`: comments.
 - Web: `api.ts` (no "Talk freely" group name), `StudioScreen.tsx` (`TakeVerdict` no longer needs the prompt), mock fixtures (`phon-03` and `phon-04` in place of the two free-talk prompts), the free-talk studio test removed. Visual baselines rewritten by `update-visual-baselines.yml`: the studio, takes and coverage shots show the new fixture prompts.
 - Tests: the free-talk scoring test removed; a seeding test for an older database; coverage, pilot, studio and integration tests read prompts with text.
 - Docs: overview, progress, tests/unit/README.

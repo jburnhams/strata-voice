@@ -5,7 +5,9 @@ Two checks, run on the master as kept (it is never changed):
 
 - **Levels**, here and at once (`strata_python.wav.measure`): it clipped, it is too quiet, or the room is noisy.
 - **Words**, through strata-models' `transcribe` role (Whisper with word timings): nothing was said, or the words were
-  not the prompt's (word error rate, `strata_python.wer`). The prompt is not given to Whisper as its `initial_prompt`: that would pull the transcript towards the prompt and hide the
+  not the prompt's (word error rate, `strata_python.wer`). A take of an old free-talk prompt (`curriculum.FREE_TALK`)
+  has no text to match, so only "nothing was said" applies, and its transcript is its text in the manifest. The prompt
+  is not given to Whisper as its `initial_prompt`: that would pull the transcript towards the prompt and hide the
   very misreadings the check is for.
 
 The word timings also give the crop: from just before the first word to just after the last (`PAD_BEFORE`,
@@ -29,6 +31,7 @@ from strata_python.contracts import ApiModel
 from strata_python.wav import WavLevels, measure
 from strata_python.wer import word_errors
 
+from stratavoice import curriculum
 from stratavoice.models import Prompt, Take
 
 log = logging.getLogger(__name__)
@@ -144,9 +147,10 @@ def score(db: Session, t: Take, p: Prompt, path: str) -> None:
         else:
             t.speech_start = round(max(0.0, words[0].start - PAD_BEFORE), 3)
             t.speech_end = round(min(levels.seconds, words[-1].end + PAD_AFTER), 3)
-            t.wer = wer = round(word_errors(p.text, transcript.text).wer, 4)
-            if wer > MAX_WER:
-                found.append("words")
+            if p.kind != curriculum.FREE_TALK:
+                t.wer = wer = round(word_errors(p.text, transcript.text).wer, 4)
+                if wer > MAX_WER:
+                    found.append("words")
     t.problems = " ".join(found)
     t.verdict = RETRY if found else UNCHECKED if heard is None else GOOD
     t.scored = datetime.datetime.now(datetime.UTC)

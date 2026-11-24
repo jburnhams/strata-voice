@@ -32,6 +32,9 @@ class Seed:
 
 
 KINDS = ("phonetic", "prosodic", "expressive", "evaluation")
+#: The kind of the free-talk prompts a database seeded before 2026-11-24 may hold. None is offered any more, but a take
+#: of one keeps its own handling: no text to match, and its transcript is its training text.
+FREE_TALK = "spontaneous"
 
 STYLES = (
     "neutral",

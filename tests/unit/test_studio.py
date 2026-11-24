@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from strata_python.testing import sine_wav
-from takes import speech
+from strata_python.testing import FakeModels, sine_wav
+from takes import heard, speech
 
-from stratavoice import curriculum, phonemes, settings, studio
+from stratavoice import coverage, curriculum, phonemes, settings, studio
 from stratavoice.models import Prompt
 
 
@@ -57,21 +57,49 @@ def test_the_queue_moves_on_past_recorded_and_skipped_prompts(db_session: Sessio
     assert (p.recorded, p.skipped, p.takes, p.seconds) == (1, 0, 2, 3.0)
 
 
-def test_free_talk_prompts_from_an_older_curriculum_leave_unless_recorded(db_session: Session, consented: None):
-    studio.seed(db_session)
+def _old_free_talk(db: Session, *keys: str) -> list[Prompt]:
+    """Free-talk prompts as a database seeded before 2026-11-24 has them."""
     now = datetime.datetime.now(datetime.UTC)
-    for key in ("spont-01", "spont-02"):  # as a database seeded before 2026-11-24 has them
-        db_session.add(
-            Prompt(key=key, text="Talk about your weekend.", kind="spontaneous", cue=None, partition="train",
-                   source="starter", position=0, created=now)
-        )  # fmt: skip
-    db_session.commit()
-    kept = db_session.scalars(select(Prompt).where(Prompt.key == "spont-02")).one()
+    rows = [
+        Prompt(key=k, text="Talk about your weekend.", kind=curriculum.FREE_TALK, cue=None, partition="train",
+               source="starter", position=0, created=now)
+        for k in keys
+    ]  # fmt: skip
+    db.add_all(rows)
+    db.commit()
+    return rows
+
+
+def test_free_talk_prompts_from_an_older_curriculum_leave_unless_recorded(
+    db_session: Session, consented: None, models: FakeModels
+):
+    studio.seed(db_session)
+    _, kept, judged = _old_free_talk(db_session, "spont-01", "spont-02", "spont-03")
     studio.add_take(db_session, kept.id, speech())
+    models.down = False
+    models.results["transcribe"] = heard("")  # nothing said: `retry`, so not a usable take
+    assert studio.score_take(db_session, studio.add_take(db_session, judged.id, speech()).id).verdict == "retry"
     assert studio.seed(db_session) == 0
     keys = set(db_session.scalars(select(Prompt.key)))
-    assert ("spont-01" in keys, "spont-02" in keys) == (False, True)  # a recorded one stays with its take
-    assert all(p.kind != "spontaneous" for p in studio.upcoming(db_session, 100))
+    assert ("spont-01" in keys, "spont-02" in keys, "spont-03" in keys) == (False, True, True)  # kept with their takes
+    assert all(p.kind != curriculum.FREE_TALK for p in studio.upcoming(db_session, 100))  # never offered again
+    assert judged.skipped is not None
+    assert coverage.coverage(db_session).prompts == 0  # not heard yet: no words to count
+    studio.seed(db_session)  # already skipped: left as it is
+    assert judged.skipped is not None
+
+
+def test_an_old_free_talk_take_is_its_transcript(db_session: Session, consented: None, models: FakeModels):
+    (talk,) = _old_free_talk(db_session, "spont-01")
+    models.down = False
+    long = " ".join(["Well, my morning started with a very long walk"] * 60)  # 2,880 characters: kept whole
+    models.results["transcribe"] = heard(long)
+    t = studio.score_take(db_session, studio.add_take(db_session, talk.id, speech()).id)
+    assert (t.verdict, t.wer) == ("good", None)  # no text to match
+    (record,) = studio.manifest(db_session)
+    assert (record["text"], record["phonemes"], record["requested_style"]) == (long, None, None)
+    said = {u.value: u.count for u in coverage.coverage(db_session).groups[0].units}
+    assert said["w"] >= 2  # "Well", "walk": coverage counts what was said
 
 
 def test_a_take_is_written_as_a_wav_master_and_described(db_session: Session, consented: None):
