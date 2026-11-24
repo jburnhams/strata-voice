@@ -48,29 +48,34 @@ def test_a_session_against_each_threshold(db_session: Session, consented: None, 
     models.results["transcribe"] = heard("I went for a walk by the river")
     talk = studio.add_take(db_session, spont.id, speech(2.0))
     studio.score_take(db_session, talk.id)
+    models.results["transcribe"] = heard(read[0].text)
+    again = studio.add_take(db_session, read[0].id, speech(2.0))  # Record again after a good take: only one is kept
+    studio.score_take(db_session, again.id)
     noisy = studio.add_take(db_session, read[1].id, sine_wav(1.0))  # no quiet at all; never scored
-    for i, t in enumerate((good, wrong, talk, noisy)):
+    for i, t in enumerate((good, wrong, talk, again, noisy)):
         _at(db_session, t.id, start + datetime.timedelta(minutes=2 * i))
 
     p = pilot.report(db_session)
-    assert (p.takes, p.prompts, p.again) == (4, 3, 1)
-    assert p.verdicts == {"good": 2, "retry": 1, "unchecked": 0, "unscored": 1}
+    assert (p.takes, p.prompts, p.again) == (5, 3, 2)
+    assert p.verdicts == {"good": 3, "retry": 1, "unchecked": 0, "unscored": 1}
     assert p.accepted == 1
     assert p.started == start - datetime.timedelta(seconds=2)
-    assert p.minutes == 6.0
-    assert p.speech_seconds == pytest.approx(3 * (0.9 + 0.25 - 0.15), abs=0.05)  # three usable crops
-    assert p.speech_per_minute == pytest.approx(p.speech_seconds / 6.0, abs=0.05)
+    assert p.minutes == 8.0
+    # Each prompt's newest usable take, as the manifest exports: `again` and `talk`. The second prompt's newest is the
+    # unscored take, which counts but has no crop yet.
+    assert p.speech_seconds == pytest.approx(2 * (0.9 + 0.25 - 0.15), abs=0.05)
+    assert p.speech_per_minute == pytest.approx(p.speech_seconds / 8.0, abs=0.05)
     assert p.lead is not None
     assert p.lead.median == pytest.approx(0.15)  # the first word at 0.3 s, less PAD_BEFORE
     checks = {c.code: c for c in p.checks}
     words = checks["words"]
-    assert (words.measured, words.failed, words.limit) == (2, 1, scoring.MAX_WER)  # the spontaneous take has no WER
+    assert (words.measured, words.failed, words.limit) == (3, 1, scoring.MAX_WER)  # the spontaneous take has no WER
     peak = checks["quiet"]
-    assert (peak.measured, peak.failed, peak.fails_when) == (3, 0, "below")
+    assert (peak.measured, peak.failed, peak.fails_when) == (4, 0, "below")
     assert checks["clipped"].near == 0
 
     lines = pilot.describe(p)
-    assert lines[0].startswith("Session 2026-11-24 08:59 to 09:06 UTC, 6 min: 4 take(s) of 3 prompt(s)")
+    assert lines[0].startswith("Session 2026-11-24 08:59 to 09:08 UTC, 8 min: 5 take(s) of 3 prompt(s)")
     assert "1 retry (1 kept anyway)" in lines[1]
     assert any(line.startswith("Word error rate: limit 0.1 share (fails above)") for line in lines)
     assert lines[-1].startswith("Some takes are not fully judged")
@@ -78,7 +83,7 @@ def test_a_session_against_each_threshold(db_session: Session, consented: None, 
     assert not pilot.describe(judged)[-1].startswith("Some takes")
 
     since = pilot.report(db_session, since=(start - datetime.timedelta(days=1)).date())
-    assert since.takes == 5
+    assert since.takes == 6
 
 
 def test_a_break_starts_a_new_session(db_session: Session, consented: None):

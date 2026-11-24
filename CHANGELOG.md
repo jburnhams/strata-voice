@@ -6,7 +6,7 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 **strata-voice: the pilot report (branch `claude/project-thread-cvjjmf`)**
 Step 4 of the plan is a recorded session, then thresholds tuned from it; the session is Jonathan's to record, so this adds the report that the tuning reads.
-- `src/stratavoice/pilot.py` (**new**): `session` (the newest run of takes with no gap over 30 minutes, or every take from a day), `report` (verdicts, takes per prompt, recorded and kept speech, speech per minute, the crop's lead and tail, and each of `scoring.py`'s checks with its spread, failures and near misses) and `describe`.
+- `src/stratavoice/pilot.py` (**new**): `session` (the newest run of takes with no gap over 30 minutes, or every take from a day), `report` (verdicts, takes per prompt, recorded speech, kept speech counted from each prompt's newest usable take as the manifest exports it (Codex review), speech per minute, the crop's lead and tail, and each of `scoring.py`'s checks with its spread, failures and near misses) and `describe`.
 - `src/stratavoice/cli.py`: `pilot [--since YYYY-MM-DD] [--json]`.
 - Tests: `tests/unit/test_pilot.py` (**new**), `test_cli.py` (the command), integration `test_cli.py` (a fresh studio). Coverage 100%.
 - Docs: AGENTS (module and command), overview, implementation-plan (step 4 split into the report, the session and the tuning, with how to run it), progress, tests/unit/README ledger.

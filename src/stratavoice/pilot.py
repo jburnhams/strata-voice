@@ -62,7 +62,7 @@ class Pilot(ApiModel):
     verdicts: dict[str, int]  # good, retry, unchecked, and "unscored" for takes not judged yet
     accepted: int  # retry takes the speaker kept anyway
     recorded_seconds: float  # every take, end to end
-    speech_seconds: float  # the crops of the usable takes: what goes to the dataset
+    speech_seconds: float  # the crop of each prompt's newest usable take: what goes to the dataset
     minutes: float  # from the first take's start to the last one's end
     speech_per_minute: float | None  # seconds of kept speech per minute at the microphone
     lead: Spread | None  # seconds from Record to the first word (the crop's start)
@@ -138,7 +138,8 @@ def report(db: Session, since: datetime.date | None = None) -> Pilot:
     per_prompt: dict[int, int] = {}
     for t in takes:
         per_prompt[t.prompt_id] = per_prompt.get(t.prompt_id, 0) + 1
-    usable = [t for t in takes if t.verdict != scoring.RETRY or t.accepted]
+    # Kept speech is what the manifest would export: each prompt's newest usable take, not every one that passed.
+    usable = list({t.prompt_id: t for t in takes if t.verdict != scoring.RETRY or t.accepted}.values())
     cropped = [t for t in scored if t.speech_start is not None and t.speech_end is not None]
     speech = sum(
         t.speech_end - t.speech_start for t in usable if t.speech_start is not None and t.speech_end is not None
