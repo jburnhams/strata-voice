@@ -1,6 +1,7 @@
 // The one question: "What have I recorded, and is each take one I want to keep?" Takes grow without end, so
 // they are read a page at a time (useInfiniteLoad over the server's Page, its cursor the last take held ->
-// InfiniteList). Each row names the prompt, how long the take runs and when it was made, with Listen and
+// InfiniteList). Each row names the prompt, how the take was judged (the same status word as the studio's), how
+// long it runs and when it was made, with Listen and
 // Remove as RowActions named by the prompt. One player above the list plays the take chosen, so a long list
 // does not mount a player per row. Removing a take is reversible for a few seconds (useUndoable -> UndoBar)
 // and then deletes the file; the prompt comes back to the studio's queue when its last take goes.
@@ -18,11 +19,12 @@ import {
   RowAction,
   Skeleton,
   SPEECH_RATES,
+  Status,
   UndoBar,
   useInfiniteLoad,
   useUndoable,
 } from 'strata-react'
-import { api, keys, kindName, type Take, takeAudio } from '../api'
+import { api, crop, keys, kindName, type Take, takeAudio, verdictWord } from '../api'
 
 /** Takes per page. Small enough that the first page is quick, large enough to fill a screen. */
 export const PAGE_SIZE = 20
@@ -34,6 +36,7 @@ function RowsSkeleton({ rows = 3 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-4 py-3">
           <Skeleton className="h-3.5 flex-1" />
+          <Skeleton className="h-3.5 w-28" />
           <Skeleton className="h-3.5 w-12" />
           <Skeleton className="hidden h-3.5 w-40 sm:block" />
           <Skeleton className="h-3.5 w-32" />
@@ -84,7 +87,15 @@ export function TakesScreen() {
           <h2 id="listening" className="type-heading">
             Listening
           </h2>
-          <MediaPlayer label={`Take of “${playing.prompt_text}”`} kind="audio" src={takeAudio(playing.id)} rates={SPEECH_RATES} autoPlay />
+          <MediaPlayer
+            label={`Take of “${playing.prompt_text}”`}
+            kind="audio"
+            src={takeAudio(playing.id)}
+            rates={SPEECH_RATES}
+            window={crop(playing)}
+            showFull={!!crop(playing)}
+            autoPlay
+          />
         </section>
       )}
       <InfiniteList
@@ -114,6 +125,9 @@ export function TakesScreen() {
               <span className="min-w-0 flex-1 truncate">
                 {t.prompt_text}
                 <span className="ml-2 text-muted-foreground">{kindName(t.kind)}</span>
+              </span>
+              <span className="w-28 shrink-0">
+                <Status tone={verdictWord(t).tone}>{verdictWord(t).word}</Status>
               </span>
               <span className="w-12 shrink-0 text-right tabular-nums">{format.runningTime(t.seconds)}</span>
               <span className="hidden w-40 shrink-0 text-muted-foreground tabular-nums sm:block">{format.dateTime(t.created)}</span>

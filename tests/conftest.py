@@ -8,12 +8,23 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from strata_python.testing import FakeModels
 
 
 @pytest.fixture
-def client(db_env: str) -> Iterator[TestClient]:
-    """The HTTP API on a fresh migrated test database. Used as a context manager so the server's lifespan runs, as
-    under uvicorn: the engine is disposed when the test ends (a SQLite file left open cannot be removed on Windows)."""
+def models(fake_models: FakeModels) -> FakeModels:
+    """strata-models, stood in for over real HTTP (the plugin's `fake_models`), down until a test gives it answers:
+    a take is then judged on its levels alone and comes back `unchecked`, as when the service is not running. Set
+    `models.down = False` and `models.results["transcribe"] = takes.heard("...")` to have its words heard."""
+    fake_models.down = True
+    return fake_models
+
+
+@pytest.fixture
+def client(db_env: str, models: FakeModels) -> Iterator[TestClient]:
+    """The HTTP API on a fresh migrated test database, with strata-models down (`models`). Used as a context manager so
+    the server's lifespan runs, as under uvicorn: the engine is disposed when the test ends (a SQLite file left open
+    cannot be removed on Windows)."""
     from stratavoice.server.app import create_app
 
     with TestClient(create_app()) as c:

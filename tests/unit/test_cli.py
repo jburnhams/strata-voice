@@ -3,7 +3,8 @@ import json
 from pathlib import Path
 
 import pytest
-from strata_python.testing import sine_wav
+from strata_python.testing import FakeModels, sine_wav
+from takes import heard, speech
 
 from stratavoice import cli, curriculum, db, settings, studio
 from stratavoice.server import app as server_app
@@ -23,6 +24,32 @@ def test_doctor_success_and_missing_module(capsys: pytest.CaptureFixture[str], m
     monkeypatch.setattr(importlib, "import_module", fake_import)
     assert cli.main(["doctor"]) == 1
     assert "MISSING  uvicorn" in capsys.readouterr().out
+
+
+def test_score_judges_the_takes_not_judged_yet(capsys: pytest.CaptureFixture[str], db_env: str, models: FakeModels):
+    assert cli.main(["score"]) == 0
+    assert "every take is judged" in capsys.readouterr().out
+    settings.SETTINGS.save({"consented_on": "2026-11-24"})
+    with db.session() as s:
+        prompt = next(p for p in studio.prompts(s) if p.kind == "phonetic")
+        studio.add_take(s, prompt.id, speech())
+        studio.add_take(s, prompt.id, sine_wav(1.0))  # no quiet at all: reads as a noisy room
+
+    assert cli.main(["score"]) == 0
+    out = capsys.readouterr().out
+    assert "unchecked" in out
+    assert "The room is noisy" in out
+    models.down = False
+    models.results["transcribe"] = heard(prompt.text)
+    assert cli.main(["score"]) == 0  # both: neither was heard while strata-models was down
+    out = capsys.readouterr().out
+    assert (out.count("#"), "good" in out) == (2, True)
+    assert cli.main(["score"]) == 0
+    assert "every take is judged" in capsys.readouterr().out  # both heard now
+    assert cli.main(["score", "--all"]) == 0
+    assert capsys.readouterr().out.count("#") == 2
+    assert cli.main(["takes"]) == 0
+    assert "retry" in capsys.readouterr().out
 
 
 def test_prompts_takes_and_manifest_commands(capsys: pytest.CaptureFixture[str], db_env: str, tmp_path: Path):

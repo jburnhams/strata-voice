@@ -102,8 +102,27 @@
     "title": "Page[TakeOut]",
     "type": "object"
    },
+   "Problem": {
+    "description": "One reason a take should be recorded again, in words the speaker can act on.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "sentence": {
+      "title": "Sentence",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "sentence"
+    ],
+    "title": "Problem",
+    "type": "object"
+   },
    "Progress": {
-    "description": "How far through the queue the speaker is. `seconds` counts every take kept, retries included.",
+    "description": "How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`\ncount every take kept, retries included.",
     "properties": {
      "prompts": {
       "title": "Prompts",
@@ -356,8 +375,34 @@
     "type": "object"
    },
    "TakeOut": {
-    "description": "A kept take, with the prompt it was recorded for. Ids grow with time and are never reused.",
+    "description": "A kept take, with the prompt it was recorded for and how it was judged (`verdict` null: not scored yet; the\nother fields are explained in models.Take). Ids grow with time and are never reused.",
     "properties": {
+     "accepted": {
+      "title": "Accepted",
+      "type": "boolean"
+     },
+     "asr_model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Asr Model"
+     },
+     "clipped": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Clipped"
+     },
      "created": {
       "format": "date-time",
       "title": "Created",
@@ -382,6 +427,35 @@
       "title": "Kind",
       "type": "string"
      },
+     "noise_db": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Noise Db"
+     },
+     "peak_db": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Peak Db"
+     },
+     "problems": {
+      "items": {
+       "$ref": "#/components/schemas/Problem"
+      },
+      "title": "Problems",
+      "type": "array"
+     },
      "prompt_id": {
       "title": "Prompt Id",
       "type": "integer"
@@ -405,6 +479,72 @@
      "size_bytes": {
       "title": "Size Bytes",
       "type": "integer"
+     },
+     "speech_db": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speech Db"
+     },
+     "speech_end": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speech End"
+     },
+     "speech_start": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speech Start"
+     },
+     "transcript": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Transcript"
+     },
+     "verdict": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Verdict"
+     },
+     "wer": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Wer"
      }
     },
     "required": [
@@ -417,7 +557,19 @@
      "sample_width",
      "size_bytes",
      "device",
-     "created"
+     "created",
+     "verdict",
+     "problems",
+     "accepted",
+     "transcript",
+     "asr_model",
+     "wer",
+     "peak_db",
+     "noise_db",
+     "speech_db",
+     "clipped",
+     "speech_start",
+     "speech_end"
     ],
     "title": "TakeOut",
     "type": "object"
@@ -882,6 +1034,82 @@
     "summary": "Delete Take"
    }
   },
+  "/api/takes/{take_id}/accept": {
+   "delete": {
+    "operationId": "delete_accept_api_takes__take_id__accept_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "take_id",
+      "required": true,
+      "schema": {
+       "title": "Take Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Accept"
+   },
+   "post": {
+    "operationId": "post_accept_api_takes__take_id__accept_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "take_id",
+      "required": true,
+      "schema": {
+       "title": "Take Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Accept"
+   }
+  },
   "/api/takes/{take_id}/audio": {
    "get": {
     "operationId": "get_take_audio_api_takes__take_id__audio_get",
@@ -912,6 +1140,45 @@
      }
     },
     "summary": "Get Take Audio"
+   }
+  },
+  "/api/takes/{take_id}/score": {
+   "post": {
+    "operationId": "post_score_api_takes__take_id__score_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "take_id",
+      "required": true,
+      "schema": {
+       "title": "Take Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Score"
    }
   }
  }

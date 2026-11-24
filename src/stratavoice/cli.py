@@ -1,6 +1,7 @@
 """Command line. From strata-python: `doctor` (versions and imports), `set` (a setting), `serve` (the web server) and
 `openapi` (the schema file the web app's types are generated from). The app's own: `prompts` lists the queue with
-how far each prompt has got, `takes` lists the kept takes, and `manifest` writes the dataset manifest (JSONL)."""
+how far each prompt has got, `takes` lists the kept takes with their verdicts, `score` judges the takes not judged yet
+(after strata-models was not running), and `manifest` writes the dataset manifest (JSONL)."""
 
 import argparse
 import json
@@ -48,7 +49,20 @@ def cmd_takes(args: argparse.Namespace) -> int:
     elif not items:
         print("  (no takes yet: record some in the studio, ./strata-voice serve)")
     for t in [] if args.json else items:
-        print(f"  #{t.id:<5} {t.seconds:6.1f} s  {t.created:%Y-%m-%d %H:%M}  {t.prompt_text[:60]}")
+        verdict = t.verdict or "not scored"
+        print(f"  #{t.id:<5} {t.seconds:6.1f} s  {t.created:%Y-%m-%d %H:%M}  {verdict:10}  {t.prompt_text[:60]}")
+    return 0
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    with db.session() as s:
+        ids = [t.id for t in studio.takes_page(s, limit=1_000_000).items] if args.all else studio.unscored(s)
+        if not ids:
+            print("  (every take is judged; --all judges them again)")
+        for take_id in ids:
+            t = studio.score_take(s, take_id)
+            why = " ".join(p.sentence for p in t.problems)
+            print(f"  #{t.id:<5} {t.verdict:10} {why or t.prompt_text[:60]}")
     return 0
 
 
@@ -77,6 +91,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     t.add_argument("--limit", type=int, default=50)
     t.add_argument("--json", action="store_true")
     t.set_defaults(fn=cmd_takes)
+    sc = sub.add_parser("score", help="judge the takes not judged yet (levels here, words through strata-models)")
+    sc.add_argument("--all", action="store_true", help="judge every take again, as after changing a threshold")
+    sc.set_defaults(fn=cmd_score)
     m = sub.add_parser("manifest", help="write the dataset manifest: one JSON record per prompt's take in use")
     m.add_argument("-o", "--out", help="file to write (default: standard output)")
     m.set_defaults(fn=cmd_manifest)

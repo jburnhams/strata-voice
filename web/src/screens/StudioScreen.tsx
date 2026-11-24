@@ -6,11 +6,14 @@
 // - the read is useLoad -> DataView, with a skeleton shaped like the prompt card;
 // - nothing records before consent: the consent card's AsyncButton writes the `consented_on` setting;
 // - a take is kept the moment it stops (useAsyncAction, so the upload has its pending, done and error
-//   states), then played back from the server, so what is heard is what was kept;
+//   states), judged by the server before it answers (scoring.py: levels, then the words through strata-models),
+//   then played back from the server, cropped to the speech, so what is heard is what was kept;
+// - a take judged `retry` asks again at once: its problems in words, Record again as the one filled button, and
+//   "Keep it anyway" for a take the speaker knows is right (a name the recogniser does not know);
 // - skipping is a reversible removal (useUndoable -> UndoBar): the server's queue holds the next few
 //   prompts, so the one after shows at once while Undo is still in reach;
 // - the studio is worked from the keyboard (useHotkeys + KeysLegend from one Shortcut list): R records,
-//   stops and records again, N moves on, S skips.
+//   stops and records again, N moves on, K keeps a take judged for another anyway, S skips.
 // The level meter and the verdict after a take are the microphone check: a speaker sees the level while
 // talking and hears back what was kept, which is what a calibration step would have told them. Capture, the
 // WAV, the meter and the verdict are strata-react's (useRecorder, InputLevel, TakeLevel).
@@ -35,6 +38,7 @@ import {
   type Shortcut,
   Skeleton,
   SPEECH_RATES,
+  Status,
   TakeLevel,
   UndoBar,
   useAsyncAction,
@@ -43,7 +47,20 @@ import {
   useRecorder,
   useUndoable,
 } from 'strata-react'
-import { api, keys, kindName, type Progress, type Prompt, postTake, type Studio, type Take, takeAudio, today } from '../api'
+import {
+  api,
+  crop,
+  keys,
+  kindName,
+  type Progress,
+  type Prompt,
+  postTake,
+  type Studio,
+  type Take,
+  takeAudio,
+  today,
+  verdictWord,
+} from '../api'
 
 /** The page's finding: how far through the prompts, and how much speech is kept. */
 export function describeProgress(p: Progress): string {
@@ -216,6 +233,22 @@ function PromptCard({
   })
   const keeping = keep.phase === 'pending'
   const busy = recorder.recording || keeping
+  // Judged for another take, and not kept anyway: the studio asks again rather than moving on.
+  const retryTake = review && review.take.verdict === 'retry' && !review.take.accepted ? review.take : undefined
+  const retry = !!retryTake
+
+  // Skipping a prompt whose take was judged for another lets the take go too: the studio moves on.
+  const skip = () => {
+    onSkip(prompt)
+    if (review) onNext()
+  }
+
+  const keepAnyway = useAsyncAction(async (take: Take) => {
+    await api.post('/api/takes/{take_id}/accept', { path: { take_id: take.id }, json: undefined })
+    await queryClient.invalidateQueries({ queryKey: keys.studio })
+    await queryClient.invalidateQueries({ queryKey: keys.takes })
+    onNext()
+  })
 
   const record = async () => {
     setUnsaved(null)
@@ -232,8 +265,14 @@ function PromptCard({
       run: () => (recorder.recording ? recorder.stop() : void record()),
       disabled: keeping,
     },
-    { keys: ['n'], label: 'Next prompt', run: onNext, disabled: !review || busy },
-    { keys: ['s'], label: 'Skip', run: () => onSkip(prompt), disabled: !!review || busy },
+    { keys: ['n'], label: 'Next prompt', run: onNext, disabled: !review || retry || busy },
+    {
+      keys: ['k'],
+      label: 'Keep it anyway',
+      run: () => void keepAnyway.run(retryTake as Take),
+      disabled: !retry || busy || keepAnyway.phase === 'pending',
+    },
+    { keys: ['s'], label: 'Skip', run: skip, disabled: (!!review && !retry) || busy },
   ]
   useHotkeys(shortcuts)
 
@@ -261,7 +300,23 @@ function PromptCard({
             Stop
           </Button>
         ) : keeping ? (
-          <AsyncButton variant="default" phase="pending" labels={{ idle: 'Keep take', pending: 'Keeping…', done: 'Kept' }} />
+          <AsyncButton variant="default" phase="pending" labels={{ idle: 'Keep take', pending: 'Checking the take…', done: 'Kept' }} />
+        ) : retry ? (
+          <>
+            <Button variant="default" onClick={() => void record()}>
+              Record again
+            </Button>
+            <AsyncButton
+              variant="outline"
+              phase={keepAnyway.phase}
+              error={keepAnyway.error}
+              onClick={() => void keepAnyway.run(retryTake as Take)}
+              labels={{ idle: 'Keep it anyway', pending: 'Keeping…', done: 'Kept' }}
+            />
+            <Button variant="ghost" onClick={skip}>
+              Skip
+            </Button>
+          </>
         ) : review ? (
           <>
             <Button variant="default" onClick={onNext}>
@@ -276,7 +331,7 @@ function PromptCard({
             <Button variant="default" onClick={() => void record()}>
               Record
             </Button>
-            <Button variant="ghost" onClick={() => onSkip(prompt)}>
+            <Button variant="ghost" onClick={skip}>
               Skip
             </Button>
           </>
@@ -286,6 +341,11 @@ function PromptCard({
       {recorder.state.phase === 'failed' && (
         <Alert tone="danger" title="Nothing was recorded" announce>
           {recorder.state.reason}
+        </Alert>
+      )}
+      {keepAnyway.phase === 'error' && (
+        <Alert tone="danger" title="The take was not kept" announce>
+          {keepAnyway.error} Try Keep it anyway again, or record it again.
         </Alert>
       )}
       {keep.phase === 'error' && unsaved && (
@@ -307,12 +367,47 @@ function PromptCard({
   )
 }
 
-/** The take as the server kept it, and what its level says. */
+/** The take as the server kept it, cropped to the speech, with what its level says and how it was judged. */
 function TakeReview({ review }: { review: Review }) {
+  const { take, prompt } = review
+  const window = crop(take)
   return (
     <div className="grid max-w-xl gap-3">
-      <MediaPlayer label={`Your take of “${review.prompt.text}”`} kind="audio" src={takeAudio(review.take.id)} rates={SPEECH_RATES} />
-      <TakeLevel peak={review.recording.peak} lead={`Kept ${format.runningTime(review.take.seconds)}`} />
+      <MediaPlayer
+        label={`Your take of “${prompt.text}”`}
+        kind="audio"
+        src={takeAudio(take.id)}
+        rates={SPEECH_RATES}
+        window={window}
+        showFull={!!window}
+      />
+      <TakeLevel peak={review.recording.peak} lead={`Kept ${format.runningTime(take.seconds)}`} />
+      <TakeVerdict take={take} prompt={prompt} />
     </div>
+  )
+}
+
+/** What the server made of the take just kept: its words heard, or each problem and what to do about it. A take
+ *  kept anyway is never shown here: keeping it moves the studio on. */
+export function TakeVerdict({ take, prompt }: { take: Take; prompt: Prompt }) {
+  if (take.verdict === 'retry') {
+    return (
+      <Alert tone="warning" title="Record it again" announce>
+        {take.problems.map(p => p.sentence).join(' ')}
+      </Alert>
+    )
+  }
+  const { tone, word } = verdictWord(take)
+  const said =
+    take.verdict !== 'good'
+      ? 'The words were not checked: the speech recogniser was not running. They are checked later (strata-voice score).'
+      : prompt.kind === 'spontaneous'
+        ? `Heard “${take.transcript}”.`
+        : 'Every word was heard. Played from just before the first word to just after the last.'
+  return (
+    <p className="flex items-baseline gap-2 type-body-sm">
+      <Status tone={tone}>{word}</Status>
+      <span className="min-w-0 flex-1">{said}</span>
+    </p>
   )
 }

@@ -12,7 +12,7 @@ dependencies = [
     # The shared server code (settings, web serving, CLI commands, contracts, the database, the test plugin and the gate).
     # It brings FastAPI, uvicorn and pydantic at the versions it was tested with; [db] adds SQLAlchemy, Alembic and psycopg.
     # While 0.x a minor release may break, so cap below the next minor; dependabot moves the lock inside the range.
-    "strata-python[db]>=0.2.9,<0.3",
+    "strata-python[db]>=0.2.14,<0.3",
     "tzdata; sys_platform == 'win32'",   # IANA timezone database, needed on Windows for zoneinfo
 ]
 
@@ -35,6 +35,7 @@ artifacts = ["src/stratavoice/server/static/**"]
 strata_env_prefix = "STRATAVOICE"                 # strata-python plugin: STRATAVOICE_HOME and STRATAVOICE_DATA point into a tmp dir for every test
 strata_tuning_vars = ["STRATAVOICE_RECORDINGS_DIR", "STRATAVOICE_CONSENTED_ON", "STRATAVOICE_MAX_TAKE_SECONDS"]    # removed from the environment for every test
 testpaths = ["tests/unit"]
+pythonpath = ["tests/utils"]                   # takes.py: speech-like WAVs and transcribe answers
 addopts = "-ra --timeout=300 --strict-markers --strict-config --import-mode=importlib"   # importlib: tests/unit and tests/integration may share file names
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]       # TestClient noise from the installed starlette; remove when the dependency moves on
 markers = [

@@ -128,7 +128,7 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
     records = list(studio.manifest(db_session))
     assert [r["prompt"]["key"] for r in records] == [spont.key, phon.key, expr.key]  # queue order
     spont_rec, phon_rec, expr_rec = records
-    assert spont_rec["text"] is None  # nothing fixed to say: no transcript to hold it to
+    assert spont_rec["text"] is None  # nothing fixed to say, and not transcribed yet
     assert phon_rec == {
         "id": f"take_{retry.id:06d}",
         "source": "human",
@@ -141,9 +141,21 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
         "observed_style": {"review_status": "unverified"},
         "elicitation": {"mode": "plain_text", "demonstration_heard": False},
         "audio": {"sample_rate": 16_000, "sample_width": 2, "seconds": 1.0},
+        "speech": None,  # not scored: no crop yet
         "device": "Desk mic",
         "recorded": retry.created.isoformat(),
-        "quality": {"asr_wer": None, "clipping": None, "noise_ok": None},
+        "asr": None,
+        "quality": {
+            "verdict": None,
+            "problems": [],
+            "accepted": False,
+            "asr_wer": None,
+            "clipping": None,
+            "noise_ok": None,
+            "peak_db": None,
+            "noise_db": None,
+            "speech_db": None,
+        },
         "partition": "train",
     }
     assert (expr_rec["requested_style"], expr_rec["elicitation"]["mode"]) == ({"label": expr.cue}, "written_label")

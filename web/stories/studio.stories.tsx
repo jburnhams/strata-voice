@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { fakeMicrophone } from 'strata-react/testing'
-import { keepFails, studioDone, studioError, studioLoading, studioNotConsented } from '../src/mocks/handlers'
+import { keepFails, keepMisread, keepUnchecked, studioDone, studioError, studioLoading, studioNotConsented } from '../src/mocks/handlers'
 import { AppAt } from './app-at'
 
 const meta = {
@@ -36,4 +36,8 @@ export const MicrophoneRefused: Story = {
 }
 /** The server does not keep the take: record and stop to see Try again. */
 export const KeepingFails: Story = { beforeEach: ({ msw }) => msw.use(keepFails), tags: ['no-visual'] }
+/** The take missed words: record and stop to see the studio ask again, with Keep it anyway beside Record again. */
+export const Misread: Story = { beforeEach: ({ msw }) => msw.use(keepMisread), tags: ['no-visual'] }
+/** strata-models is not running: record and stop to see the take kept with its words not checked. */
+export const NotChecked: Story = { beforeEach: ({ msw }) => msw.use(keepUnchecked), tags: ['no-visual'] }
 export const Phone: Story = { tags: ['visual-phone'] }

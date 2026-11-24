@@ -7,11 +7,13 @@ From strata-python: GET /api/health, GET and PUT /api/settings (consent is the `
 
     GET  /api/studio                      may it record, the next prompt, progress (a Studio)
     GET  /api/prompts                     every prompt in queue order with its count of takes
-    POST /api/prompts/{id}/takes?device=  keep a take: the body is the WAV itself (audio/wav)
+    POST /api/prompts/{id}/takes?device=  keep a take and judge it: the body is the WAV itself (audio/wav)
     POST /api/prompts/{id}/skip           take a prompt out of the queue
     DELETE /api/prompts/{id}/skip         put it back
     GET  /api/takes/page?after=&limit=    one page of takes, newest first (a Page)
     GET  /api/takes/{id}/audio            a take's WAV
+    POST /api/takes/{id}/score            judge a take again (after strata-models was not running)
+    POST /api/takes/{id}/accept           keep a take judged `retry` anyway; DELETE takes that back
     DELETE /api/takes/{id}                remove a take and its file
     GET  /api/manifest.jsonl              the dataset manifest (spec §5 records), one take per prompt
 
@@ -28,6 +30,7 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from strata_python import web
 from strata_python.contracts import Page
 from strata_python.db.web import DbSession, add_database
@@ -81,7 +84,10 @@ def create_app() -> FastAPI:
         size = int(request.headers.get("content-length") or 0)
         if size > MAX_UPLOAD:
             raise ValueError(f"The take is {size // 1_000_000} MB; the most accepted is {MAX_UPLOAD // 1_000_000} MB.")
-        return studio.add_take(s, prompt_id, await request.body(), device)
+        kept = studio.add_take(s, prompt_id, await request.body(), device)
+        # Judged before answering, so the studio can ask again at once. In a worker thread: the transcription waits
+        # on strata-models for up to scoring.ASR_WAIT_SECONDS, and the event loop serves every other request.
+        return await run_in_threadpool(studio.score_take, s, kept.id)
 
     @app.post("/api/prompts/{prompt_id}/skip")
     def post_skip(prompt_id: int, s: DbSession) -> studio.PromptOut:
@@ -100,6 +106,18 @@ def create_app() -> FastAPI:
     @app.get("/api/takes/{take_id}/audio", response_class=FileResponse)
     def get_take_audio(take_id: int, s: DbSession) -> FileResponse:
         return FileResponse(studio.take_file(s, take_id), media_type="audio/wav")
+
+    @app.post("/api/takes/{take_id}/score")
+    def post_score(take_id: int, s: DbSession) -> studio.TakeOut:
+        return studio.score_take(s, take_id)
+
+    @app.post("/api/takes/{take_id}/accept")
+    def post_accept(take_id: int, s: DbSession) -> studio.TakeOut:
+        return studio.accept_take(s, take_id)
+
+    @app.delete("/api/takes/{take_id}/accept")
+    def delete_accept(take_id: int, s: DbSession) -> studio.TakeOut:
+        return studio.accept_take(s, take_id, accepted=False)
 
     @app.delete("/api/takes/{take_id}")
     def delete_take(take_id: int, s: DbSession) -> studio.TakeOut:
