@@ -2,9 +2,11 @@
 `openapi` (the schema file the web app's types are generated from). The app's own: `prompts` lists the queue with
 how far each prompt has got, `takes` lists the kept takes with their verdicts, `score` judges the takes not judged yet
 (after strata-models was not running), `manifest` writes the dataset manifest (JSONL), `coverage` says what the
-recordings cover and lack, `write` has the prompt writer add a batch of prompts, and `rank` orders the queue again."""
+recordings cover and lack, `write` has the prompt writer add a batch of prompts, `rank` orders the queue again, and `pilot` reads a session's
+takes against the scoring thresholds (step 4, tuning them)."""
 
 import argparse
+import datetime
 import json
 import sys
 from collections.abc import Sequence
@@ -12,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from strata_python import cli as shared
 
-from stratavoice import __version__, coverage, db, phonemes, settings, studio, writer
+from stratavoice import __version__, coverage, db, phonemes, pilot, settings, studio, writer
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -126,6 +128,18 @@ def cmd_rank(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pilot(args: argparse.Namespace) -> int:
+    since = datetime.date.fromisoformat(args.since) if args.since else None
+    with db.session() as s:
+        report = pilot.report(s, since)
+    if args.json:
+        print(json.dumps(report.model_dump(mode="json"), indent=1))
+        return 0
+    for line in pilot.describe(report):
+        print(f"  {line}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="strata-voice")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -158,6 +172,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     rk = sub.add_parser("rank", help="order the generated prompts still to record by what they would add")
     rk.add_argument("--show", type=int, default=10, help="how many of the next prompts to print")
     rk.set_defaults(fn=cmd_rank)
+    pl = sub.add_parser("pilot", help="the newest session's takes against each scoring threshold, to tune them")
+    pl.add_argument(
+        "--since", metavar="YYYY-MM-DD", help="every take from this day (UTC) on, not just the newest session"
+    )
+    pl.add_argument("--json", action="store_true")
+    pl.set_defaults(fn=cmd_pilot)
     shared.add_set(sub, settings.SETTINGS)
     shared.add_serve(sub, run_server, default_port=8370)
     shared.add_openapi(sub, create_app)
