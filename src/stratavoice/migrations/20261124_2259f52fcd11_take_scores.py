@@ -30,7 +30,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("noise_db", sa.Float(), nullable=True))
         batch_op.add_column(sa.Column("speech_db", sa.Float(), nullable=True))
         batch_op.add_column(sa.Column("clipped", sa.Integer(), nullable=True))
-        batch_op.add_column(sa.Column("transcript", sa.String(length=2000), nullable=True))
+        batch_op.add_column(sa.Column("transcript", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("asr_model", sa.String(length=100), nullable=True))
         batch_op.add_column(sa.Column("wer", sa.Float(), nullable=True))
         batch_op.add_column(sa.Column("speech_start", sa.Float(), nullable=True))

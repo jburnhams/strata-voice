@@ -324,8 +324,10 @@ def accept_take(db: Session, take_id: int, accepted: bool = True) -> TakeOut:
 
 
 def unscored(db: Session) -> list[int]:
-    """The takes still to judge, oldest first: never scored, or `unchecked` (the models service could not answer)."""
-    q = select(Take.id).where(or_(Take.verdict.is_(None), Take.verdict == scoring.UNCHECKED)).order_by(Take.id)
+    """The takes whose words are still to hear, oldest first: never scored, or scored while the models service could
+    not answer. That is `unchecked`, and also a `retry` for its levels alone, which still needs its transcript and crop
+    (the training text of a spontaneous take kept anyway)."""
+    q = select(Take.id).where(Take.asr_model.is_(None)).order_by(Take.id)
     return list(db.scalars(q))
 
 

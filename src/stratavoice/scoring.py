@@ -133,7 +133,7 @@ def score(db: Session, t: Take, p: Prompt, path: str) -> None:
     if heard is not None:
         transcript, t.asr_model = heard
         words = [w for s in transcript.segments for w in s.words]
-        t.transcript = transcript.text[:2000]
+        t.transcript = transcript.text
         if not words:
             found.append("no_speech")
         else:

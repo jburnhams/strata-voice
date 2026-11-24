@@ -41,9 +41,11 @@ def test_score_judges_the_takes_not_judged_yet(capsys: pytest.CaptureFixture[str
     assert "The room is noisy" in out
     models.down = False
     models.results["transcribe"] = heard(prompt.text)
-    assert cli.main(["score"]) == 0  # only the unchecked one is still to judge
+    assert cli.main(["score"]) == 0  # both: neither was heard while strata-models was down
     out = capsys.readouterr().out
-    assert (out.count("#"), "good" in out) == (1, True)
+    assert (out.count("#"), "good" in out) == (2, True)
+    assert cli.main(["score"]) == 0
+    assert "every take is judged" in capsys.readouterr().out  # both heard now
     assert cli.main(["score", "--all"]) == 0
     assert capsys.readouterr().out.count("#") == 2
     assert cli.main(["takes"]) == 0

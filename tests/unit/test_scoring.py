@@ -87,11 +87,12 @@ def test_a_spontaneous_take_has_no_text_to_match(db_session: Session, consented:
     models.down = False
     spont = studio.prompts(db_session)[0]
     assert spont.kind == "spontaneous"
-    models.results["transcribe"] = heard("Well, my morning started with a very long walk")
+    long = " ".join(["Well, my morning started with a very long walk"] * 60)  # 2,880 characters: kept whole
+    models.results["transcribe"] = heard(long)
     t = studio.score_take(db_session, studio.add_take(db_session, spont.id, speech()).id)
     assert (t.verdict, t.wer) == ("good", None)
     (record,) = studio.manifest(db_session)
-    assert record["text"] == "Well, my morning started with a very long walk"  # the transcript is its text
+    assert record["text"] == long  # the transcript is its text
 
 
 @pytest.mark.parametrize(
@@ -109,6 +110,7 @@ def test_level_problems_are_found_without_the_models_service(
     assert (t.verdict, [p.code for p in t.problems]) == ("retry", codes)
     assert t.problems[0].sentence.startswith(sentence)
     assert (t.transcript, t.asr_model) == (None, None)  # strata-models was down
+    assert studio.unscored(db_session) == [t.id]  # its words are still to hear
 
 
 def test_a_clean_take_is_unchecked_when_the_service_cannot_answer(

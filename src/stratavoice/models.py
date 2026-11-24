@@ -12,7 +12,7 @@ on the shared Postgres; see strata-python's README, "Database"."""
 
 import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, false
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, Text, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 from strata_python.db import NAMING_CONVENTION
 
@@ -77,7 +77,8 @@ class Take(Base):
     noise_db: Mapped[float | None] = mapped_column(Float, default=None)
     speech_db: Mapped[float | None] = mapped_column(Float, default=None)
     clipped: Mapped[int | None] = mapped_column(Integer, default=None)
-    transcript: Mapped[str | None] = mapped_column(String(2000), default=None)
+    # Text, not a bounded String: a spontaneous take's transcript is its training text, and a 300 s take can run long.
+    transcript: Mapped[str | None] = mapped_column(Text, default=None)
     asr_model: Mapped[str | None] = mapped_column(String(100), default=None)
     wer: Mapped[float | None] = mapped_column(Float, default=None)
     speech_start: Mapped[float | None] = mapped_column(Float, default=None)
