@@ -33,23 +33,91 @@ export const initialPrompts: Prompt[] = seeds.map(([key, kind, text, cue, partit
   skipped: false,
 }))
 
+/** How the server judges a take that went well (scoring.py): every word heard, cropped a fifth of a second in from
+ *  each end, at a good level in a quiet room. */
+export function goodScore(
+  p: Prompt,
+  seconds: number,
+): Pick<
+  Take,
+  | 'verdict'
+  | 'problems'
+  | 'accepted'
+  | 'transcript'
+  | 'asr_model'
+  | 'wer'
+  | 'peak_db'
+  | 'noise_db'
+  | 'speech_db'
+  | 'clipped'
+  | 'speech_start'
+  | 'speech_end'
+> {
+  const read = p.kind !== 'spontaneous'
+  return {
+    verdict: 'good',
+    problems: [],
+    accepted: false,
+    transcript: read ? p.text : 'Last weekend I walked along the canal and ended up at a market I had never seen before.',
+    asr_model: 'whisper-large-v3-turbo',
+    wer: read ? 0 : null,
+    peak_db: -8.4,
+    noise_db: -63.1,
+    speech_db: -19.6,
+    clipped: 0,
+    speech_start: 0.2,
+    speech_end: Math.round((seconds - 0.2) * 1000) / 1000,
+  }
+}
+
+/** The same take judged `retry` because the reading missed words, as scoring.problems words it. */
+export function misreadScore(p: Prompt, seconds: number): ReturnType<typeof goodScore> {
+  const words = p.text.split(' ')
+  const heard = words.slice(0, -2).join(' ')
+  const missed = words.slice(-2).map(w => `“${w.replace(/[.,!?]/g, '').toLowerCase()}”`)
+  return {
+    ...goodScore(p, seconds),
+    verdict: 'retry',
+    problems: [{ code: 'words', sentence: `Some words were not the prompt's: ${missed.join(', ')}. It heard “${heard}”.` }],
+    transcript: heard,
+    wer: 2 / words.length,
+  }
+}
+
+/** The same take before strata-models could hear it: levels fine, words not checked. */
+export function uncheckedScore(p: Prompt, seconds: number): ReturnType<typeof goodScore> {
+  return {
+    ...goodScore(p, seconds),
+    verdict: 'unchecked',
+    transcript: null,
+    asr_model: null,
+    wer: null,
+    speech_start: null,
+    speech_end: null,
+  }
+}
+
 /** `n` takes, newest first, one every 3 minutes back from 09:12 UTC on 23 November 2026, cycling through the prompts. */
 export function makeTakes(n: number): Take[] {
   const newest = Date.UTC(2026, 10, 23, 9, 12)
   return Array.from({ length: n }, (_, i) => {
     const id = n - i
     const p = initialPrompts[(id - 1) % initialPrompts.length]
+    const seconds = 2 + ((id * 7) % 11) + 0.25
+    // Every seventh take misread and every eleventh not checked, so the list shows each verdict.
+    const score = id % 7 === 0 ? misreadScore : id % 11 === 0 ? uncheckedScore : goodScore
     return {
       id,
       prompt_id: p.id,
       prompt_text: p.text,
       kind: p.kind,
-      seconds: 2 + ((id * 7) % 11) + 0.25,
+      seconds,
       sample_rate: 48_000,
       sample_width: 2,
       size_bytes: 400_000 + id * 1000,
       device: 'USB Audio Device',
       created: new Date(newest - i * 3 * 60_000).toISOString(),
+      ...score(p, seconds),
     }
   })
 }

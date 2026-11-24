@@ -9,15 +9,19 @@
 // mock holds, as src/stratavoice/studio.py works it out from the database, so keeping or removing a take
 // moves the queue on here too.
 import { delay, HttpResponse, http } from 'msw'
-import type { Progress, Prompt, Settings, Studio, Take, TakePage } from '../api'
+import { type Progress, type Prompt, type Settings, type Studio, type Take, type TakePage, usable } from '../api'
 import {
   defaultSettings,
+  goodScore,
   initialPrompts,
   initialTakes,
+  makeTakes,
   manyTakes,
+  misreadScore,
   systemNearlyFull as nearlyFull,
   silentWav,
   systemStatus,
+  uncheckedScore,
 } from './fixtures'
 
 /** What the mock server holds. Writes change it, so a test can keep a take and see the queue move on. */
@@ -48,6 +52,8 @@ export const paths = {
   skip: '/api/prompts/:id/skip',
   takesPage: '/api/takes/page',
   take: '/api/takes/:id',
+  accept: '/api/takes/:id/accept',
+  score: '/api/takes/:id/score',
   takeAudio: '/api/takes/:id/audio',
 } as const
 
@@ -55,7 +61,7 @@ const withTakes = (p: Prompt): Prompt => ({ ...p, takes: mock.takes.filter(t => 
 
 /** `GET /api/studio` from what the mock holds, as studio.studio does. */
 export function studioOf(state = mock): Studio {
-  const recorded = new Set(state.takes.map(t => t.prompt_id))
+  const recorded = new Set(state.takes.filter(usable).map(t => t.prompt_id))
   const progress: Progress = {
     prompts: state.prompts.length,
     recorded: recorded.size,
@@ -80,6 +86,33 @@ export function takePage(url: string, list: Take[]): TakePage {
 const refused = (detail: string, status = 400) => HttpResponse.json({ detail, payload: null }, { status })
 const down = () => new HttpResponse(null, { status: 503, statusText: 'Service Unavailable' })
 
+/** Keeps a take as studio.add_take then scoring.score do: the WAV's length from its header, judged by `score`
+ *  (good by default; the keepMisread and keepUnchecked states pass another). */
+async function keep(request: Request, promptId: string | readonly string[] | undefined, score = goodScore) {
+  if (!mock.settings.consented_on) return refused('Agree to be recorded first: nothing is kept until you do.')
+  const p = mock.prompts.find(x => x.id === Number(promptId))
+  if (!p) return refused(`There is no prompt ${String(promptId)}.`, 404)
+  const body = await request.arrayBuffer()
+  const rate = new DataView(body).getUint32(24, true)
+  const id = Math.max(0, ...mock.takes.map(t => t.id)) + 1
+  const seconds = (body.byteLength - 44) / 2 / rate
+  const take: Take = {
+    id,
+    prompt_id: p.id,
+    prompt_text: p.text,
+    kind: p.kind,
+    seconds,
+    sample_rate: rate,
+    sample_width: 2,
+    size_bytes: body.byteLength,
+    device: new URL(request.url).searchParams.get('device'),
+    created: '2026-11-23T09:30:00Z',
+    ...score(p, seconds),
+  }
+  mock.takes = [take, ...mock.takes]
+  return HttpResponse.json(take)
+}
+
 export const handlers = [
   http.get(at(paths.health), () => HttpResponse.json({ ok: true, version: systemStatus.version, commit: systemStatus.commit })),
   http.get(at(paths.system), () => HttpResponse.json({ ...systemStatus, takes: mock.takes.length, seconds: studioOf().progress.seconds })),
@@ -93,28 +126,7 @@ export const handlers = [
   }),
   http.get(at(paths.studio), () => HttpResponse.json(studioOf())),
   http.get(at(paths.prompts), () => HttpResponse.json(mock.prompts.map(withTakes))),
-  http.post(at(paths.takesOf), async ({ request, params }) => {
-    if (!mock.settings.consented_on) return refused('Agree to be recorded first: nothing is kept until you do.')
-    const p = mock.prompts.find(x => x.id === Number(params.id))
-    if (!p) return refused(`There is no prompt ${String(params.id)}.`, 404)
-    const body = await request.arrayBuffer()
-    const rate = new DataView(body).getUint32(24, true)
-    const id = Math.max(0, ...mock.takes.map(t => t.id)) + 1
-    const take: Take = {
-      id,
-      prompt_id: p.id,
-      prompt_text: p.text,
-      kind: p.kind,
-      seconds: (body.byteLength - 44) / 2 / rate,
-      sample_rate: rate,
-      sample_width: 2,
-      size_bytes: body.byteLength,
-      device: new URL(request.url).searchParams.get('device'),
-      created: '2026-11-23T09:30:00Z',
-    }
-    mock.takes = [take, ...mock.takes]
-    return HttpResponse.json(take)
-  }),
+  http.post(at(paths.takesOf), ({ request, params }) => keep(request, params.id)),
   http.post(at(paths.skip), ({ params }) => {
     const p = mock.prompts.find(x => x.id === Number(params.id))
     if (!p) return refused(`There is no prompt ${String(params.id)}.`, 404)
@@ -123,6 +135,8 @@ export const handlers = [
   }),
   http.get(at(paths.takesPage), ({ request }) => HttpResponse.json(takePage(request.url, mock.takes))),
   http.get(at(paths.takeAudio), () => new HttpResponse(silentWav(), { headers: { 'Content-Type': 'audio/wav' } })),
+  http.post(at(paths.accept), ({ params }) => accept(Number(params.id), true)),
+  http.delete(at(paths.accept), ({ params }) => accept(Number(params.id), false)),
   http.delete(at(paths.take), ({ params }) => {
     const found = mock.takes.find(t => t.id === Number(params.id))
     if (!found) return refused(`There is no take ${String(params.id)}.`, 404)
@@ -130,6 +144,15 @@ export const handlers = [
     return HttpResponse.json(found)
   }),
 ]
+
+/** Keeps a take judged `retry` anyway, or takes that back, as studio.accept_take does. */
+function accept(id: number, accepted: boolean) {
+  const found = mock.takes.find(t => t.id === id)
+  if (!found) return refused(`There is no take ${id}.`, 404)
+  const changed = { ...found, accepted }
+  mock.takes = mock.takes.map(t => (t === found ? changed : t))
+  return HttpResponse.json(changed)
+}
 
 // States. A request that never answers is "loading"; 503 is a server that is down. The app's query
 // client retries once, so an error shows after about a second (tests turn retries off).
@@ -147,12 +170,19 @@ export const studioDone = http.get(at(paths.studio), () =>
   ),
 )
 export const keepFails = http.post(at(paths.takesOf), down)
+/** The next take kept is judged `retry`: words were missed, so the studio asks for it again. */
+export const keepMisread = http.post(at(paths.takesOf), ({ request, params }) => keep(request, params.id, misreadScore))
+/** The next take kept could not be heard: strata-models is not running, so its words are not checked. */
+export const keepUnchecked = http.post(at(paths.takesOf), ({ request, params }) => keep(request, params.id, uncheckedScore))
+export const acceptFails = http.post(at(paths.accept), down)
 export const skipFails = http.post(at(paths.skip), down)
 export const consentFails = http.put(at(paths.settings), down)
 
 export const takesLoading = http.get(at(paths.takesPage), () => delay('infinite'))
 export const takesEmpty = http.get(at(paths.takesPage), () => HttpResponse.json({ items: [], next: null, total: null }))
 export const takesError = http.get(at(paths.takesPage), down)
+/** Eleven takes: take 7 missed words and take 11 was not checked, so the list shows each verdict. */
+export const takesJudged = http.get(at(paths.takesPage), ({ request }) => HttpResponse.json(takePage(request.url, makeTakes(11))))
 /** 50 takes, three pages of 20. */
 export const takesMany = http.get(at(paths.takesPage), ({ request }) => HttpResponse.json(takePage(request.url, manyTakes)))
 export const removeFails = http.delete(at(paths.take), down)

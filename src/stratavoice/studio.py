@@ -6,8 +6,10 @@ declare, so the web app's types are generated from them (`web/src/api.generated.
 
 The queue (step 1 of docs/implementation-plan.md) is the starter curriculum in its order: the next prompt is the first
 that has no take and was not skipped. Retrying a prompt adds another take; the newest is the one in use and the
-earlier ones stay on disk until removed, because a master is never overwritten. Scoring takes and choosing prompts by
-value come in later steps and change only `next_prompt` and what a take records about itself."""
+earlier ones stay on disk until removed, because a master is never overwritten. Each take is then judged
+(`scoring.py`): a prompt whose takes were all judged `retry`, and not kept anyway, is back at the front of the queue,
+so the studio asks again at once. A take not judged yet, or `unchecked`, counts: the speaker is never held up by the
+models service. Choosing prompts by value comes in step 3 and changes only `next_prompt`."""
 
 import datetime
 import hashlib
@@ -16,13 +18,13 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 from strata_python.contracts import ApiModel, Page
 from strata_python.files import inside, write_bytes_atomic
 from strata_python.wav import read_wav
 
-from stratavoice import curriculum, settings
+from stratavoice import curriculum, scoring, settings
 from stratavoice.models import Prompt, Take
 
 LOCALE = "en-GB"  # the spec's first locale; one voice, one accent
@@ -58,7 +60,8 @@ class PromptOut(ApiModel):
 
 
 class TakeOut(ApiModel):
-    """A kept take, with the prompt it was recorded for. Ids grow with time and are never reused."""
+    """A kept take, with the prompt it was recorded for and how it was judged (`verdict` null: not scored yet; the
+    other fields are explained in models.Take). Ids grow with time and are never reused."""
 
     id: int
     prompt_id: int
@@ -70,10 +73,23 @@ class TakeOut(ApiModel):
     size_bytes: int
     device: str | None
     created: datetime.datetime
+    verdict: str | None
+    problems: list[scoring.Problem]
+    accepted: bool
+    transcript: str | None
+    asr_model: str | None
+    wer: float | None
+    peak_db: float | None
+    noise_db: float | None
+    speech_db: float | None
+    clipped: int | None
+    speech_start: float | None
+    speech_end: float | None
 
 
 class Progress(ApiModel):
-    """How far through the queue the speaker is. `seconds` counts every take kept, retries included."""
+    """How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`
+    count every take kept, retries included."""
 
     prompts: int
     recorded: int
@@ -118,6 +134,11 @@ def seed(db: Session) -> int:
     return added
 
 
+def _usable() -> ColumnElement[bool]:
+    """A take that counts for its prompt: anything but a `retry` the speaker did not keep anyway."""
+    return or_(Take.verdict.is_(None), Take.verdict != scoring.RETRY, Take.accepted)
+
+
 def _take_counts(db: Session) -> dict[int, int]:
     return dict(
         db.execute(select(Take.prompt_id, func.count()).group_by(Take.prompt_id)).all()
@@ -152,9 +173,9 @@ def prompts(db: Session) -> list[PromptOut]:
 
 
 def upcoming(db: Session, limit: int = 10) -> list[PromptOut]:
-    """The next prompts to record, in queue order: no take yet and not skipped. More than one, so the studio can
-    show the one after while a skip is still inside its undo window."""
-    recorded = select(Take.prompt_id)
+    """The next prompts to record, in queue order: no usable take yet and not skipped. More than one, so the studio
+    can show the one after while a skip is still inside its undo window."""
+    recorded = select(Take.prompt_id).where(_usable())
     q = select(Prompt).where(Prompt.skipped.is_(None), Prompt.id.not_in(recorded)).order_by(Prompt.position)
     return [_prompt_out(p, 0) for p in db.scalars(q.limit(limit))]
 
@@ -167,7 +188,7 @@ def next_prompt(db: Session) -> PromptOut | None:
 def progress(db: Session) -> Progress:
     total = db.scalar(select(func.count()).select_from(Prompt)) or 0
     skipped = db.scalar(select(func.count()).select_from(Prompt).where(Prompt.skipped.is_not(None))) or 0
-    recorded = db.scalar(select(func.count(func.distinct(Take.prompt_id)))) or 0
+    recorded = db.scalar(select(func.count(func.distinct(Take.prompt_id))).where(_usable())) or 0
     takes = db.scalar(select(func.count()).select_from(Take)) or 0
     seconds = sum(f / r for f, r in db.execute(select(Take.frames, Take.sample_rate)))
     return Progress(prompts=total, recorded=recorded, skipped=skipped, takes=takes, seconds=round(seconds, 2))
@@ -203,6 +224,18 @@ def _take_out(t: Take, p: Prompt) -> TakeOut:
         size_bytes=t.size_bytes,
         device=t.device,
         created=_utc(t.created),
+        verdict=t.verdict,
+        problems=scoring.problems(t, p),
+        accepted=t.accepted,
+        transcript=t.transcript,
+        asr_model=t.asr_model,
+        wer=t.wer,
+        peak_db=t.peak_db,
+        noise_db=t.noise_db,
+        speech_db=t.speech_db,
+        clipped=t.clipped,
+        speech_start=t.speech_start,
+        speech_end=t.speech_end,
     )
 
 
@@ -274,6 +307,28 @@ def take_file(db: Session, take_id: int) -> str:
     return path
 
 
+def score_take(db: Session, take_id: int) -> TakeOut:
+    """Judge a take (again): its levels at once, its words through strata-models (scoring.py)."""
+    t = _take(db, take_id)
+    p = _prompt(db, t.prompt_id)
+    scoring.score(db, t, p, take_file(db, take_id))
+    return _take_out(t, p)
+
+
+def accept_take(db: Session, take_id: int, accepted: bool = True) -> TakeOut:
+    """Keep a take judged `retry` anyway (its prompt leaves the queue), or with `accepted=False` take that back."""
+    t = _take(db, take_id)
+    t.accepted = accepted
+    db.commit()
+    return _take_out(t, _prompt(db, t.prompt_id))
+
+
+def unscored(db: Session) -> list[int]:
+    """The takes still to judge, oldest first: never scored, or `unchecked` (the models service could not answer)."""
+    q = select(Take.id).where(or_(Take.verdict.is_(None), Take.verdict == scoring.UNCHECKED)).order_by(Take.id)
+    return list(db.scalars(q))
+
+
 def remove_take(db: Session, take_id: int) -> TakeOut:
     """Remove a take and its file. The speaker can always take back a recording (spec §5: export and deletion).
 
@@ -290,9 +345,11 @@ def remove_take(db: Session, take_id: int) -> TakeOut:
 
 
 def manifest(db: Session) -> Iterator[dict[str, Any]]:
-    """The dataset as spec §5's JSON records, one per prompt's take in use (its newest), in queue order. `audio_uri` is
-    relative to the recordings folder, or absolute for a take written to an earlier one. Quality fields are null until scoring (step 2) fills them."""
-    newest = select(func.max(Take.id)).group_by(Take.prompt_id)
+    """The dataset as spec §5's JSON records, one per prompt's take in use (its newest usable one), in queue order: a
+    prompt whose takes were all judged `retry` is left out. `audio_uri` is relative to the recordings folder, or
+    absolute for a take written to an earlier one. `speech` is the crop in seconds into the file and `quality` the
+    verdict; both are null for a take not scored yet. A spontaneous prompt's text is its transcript."""
+    newest = select(func.max(Take.id)).where(_usable()).group_by(Take.prompt_id)
     q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).where(Take.id.in_(newest))
     for t, p in db.execute(q.order_by(Prompt.position)):
         yield {
@@ -300,7 +357,7 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
             "source": "human",
             "audio_uri": t.path if t.root in ("", settings.recordings_dir()) else _file(t),
             "sha256": t.sha256,
-            "text": None if p.kind == "spontaneous" else p.text,
+            "text": t.transcript if p.kind == "spontaneous" else p.text,
             "prompt": {"key": p.key, "text": p.text, "kind": p.kind, "source": p.source},
             "locale": LOCALE,
             "requested_style": None if p.cue is None else {"label": p.cue},
@@ -311,9 +368,21 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
                 "sample_width": t.sample_width,
                 "seconds": t.frames / t.sample_rate,
             },
+            "speech": None if t.speech_start is None else {"start": t.speech_start, "end": t.speech_end},
             "device": t.device,
             "recorded": _utc(t.created).isoformat(),
-            "quality": {"asr_wer": None, "clipping": None, "noise_ok": None},
+            "asr": None if t.asr_model is None else {"model": t.asr_model, "hypothesis": t.transcript},
+            "quality": {
+                "verdict": t.verdict,
+                "problems": t.problems.split(),
+                "accepted": t.accepted,
+                "asr_wer": t.wer,
+                "clipping": None if t.clipped is None else t.clipped > scoring.CLIPPED_SAMPLES,
+                "noise_ok": None if t.noise_db is None else t.noise_db <= scoring.NOISY_FLOOR_DB,
+                "peak_db": t.peak_db,
+                "noise_db": t.noise_db,
+                "speech_db": t.speech_db,
+            },
             "partition": p.partition,
         }
 

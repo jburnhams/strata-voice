@@ -2,6 +2,23 @@
 
 Newest first, grouped by day. One entry per change, in the same commit or PR as the change.
 
+## 2026-11-24
+
+**strata-voice: auto-crop and score each take, and ask again for one that fails (branch `claude/project-thread-cvjjmf`)**
+Step 2 of docs/implementation-plan.md, for prompted takes only (Jonathan: "Not much let's just do promoted recordings for now"), so importing existing audio is left for later. The level and word-error code went into strata-python first (jburnhams/strata-python#65), as the shared audio code does.
+
+- `src/stratavoice/scoring.py` (**new**): a take's verdict (`good`, `retry`, `unchecked`) from its levels (`wav.measure`: clipping, quiet, noisy) and its words (strata-models' `transcribe` role through `clients.models`, the word error rate from `wer`), the crop from the word timings, and each problem as a sentence.
+- `src/stratavoice/models.py`, `migrations/20261124_2259f52fcd11_take_scores.py` (**new**): the take's verdict, problems, levels, transcript, model, word error rate, crop and `accepted`; nullable or with a server default, so earlier takes read as not scored.
+- `src/stratavoice/studio.py`: `score_take`, `accept_take`, `unscored`; the queue, progress and manifest count a take unless it is a `retry` not kept anyway; `TakeOut` carries the verdict; the manifest gains `speech`, `asr` and real `quality` fields, and a spontaneous prompt's text is its transcript.
+- `src/stratavoice/server/app.py`: a take is judged before the upload answers (in a worker thread); `POST /api/takes/{id}/score`, `POST` and `DELETE /api/takes/{id}/accept`.
+- `src/stratavoice/cli.py`: `score [--all]`; `takes` shows each verdict.
+- `pyproject.toml`, `uv.lock`: strata-python from strata-python#65's commit until it is released; `pythonpath` for `tests/utils`.
+- `tests/utils/takes.py` (**new**), `tests/conftest.py`: speech-like WAVs, transcribe answers, and the `models` fixture (strata-models stood in for, down by default). `tests/unit/test_scoring.py` (**new**), `test_server.py`, `test_cli.py`, `test_studio.py`, `tests/integration/test_server_api.py`: each verdict and problem, the crop, the queue and manifest, the routes and the command, end to end over real HTTP.
+- `web/openapi.json`, `web/src/api.generated.ts`: regenerated. `web/src/api.ts`: `crop`, `usable`, `verdictWord`.
+- `web/src/screens/StudioScreen.tsx`: the take played from its crop with its verdict; a `retry` take shows its problems with Record again as the filled button, Keep it anyway (K) and Skip; "Checking the take…" while it is judged. `TakesScreen.tsx`: each take's verdict, played from its crop.
+- `web/src/mocks/fixtures.ts`, `handlers.ts`: every take judged (`goodScore`, `misreadScore`, `uncheckedScore`), the accept routes, and the `keepMisread`, `keepUnchecked`, `acceptFails` and `takesJudged` states. `web/stories/studio.stories.tsx`, `takes.stories.tsx`: Misread, NotChecked and EveryVerdict. `web/tests/**`: the retry flow, keep anyway, not checked, a spontaneous take, the verdict words.
+- `AGENTS.md`, `docs/overview.md`, `docs/implementation-plan.md` (step 2 done), `docs/progress.md`, `tests/README.md`: what changed and why.
+
 ## 2026-11-23
 
 **strata-voice: the recording studio shell, on shared recording code (branch `claude/project-thread-cvjjmf`)**

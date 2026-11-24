@@ -35,6 +35,7 @@ artifacts = ["src/stratavoice/server/static/**"]
 strata_env_prefix = "STRATAVOICE"                 # strata-python plugin: STRATAVOICE_HOME and STRATAVOICE_DATA point into a tmp dir for every test
 strata_tuning_vars = ["STRATAVOICE_RECORDINGS_DIR", "STRATAVOICE_CONSENTED_ON", "STRATAVOICE_MAX_TAKE_SECONDS"]    # removed from the environment for every test
 testpaths = ["tests/unit"]
+pythonpath = ["tests/utils"]                   # takes.py: speech-like WAVs and transcribe answers
 addopts = "-ra --timeout=300 --strict-markers --strict-config --import-mode=importlib"   # importlib: tests/unit and tests/integration may share file names
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]       # TestClient noise from the installed starlette; remove when the dependency moves on
 markers = [
@@ -74,3 +75,8 @@ typeCheckingMode = "strict"
 
 [tool.strata-db]
 file = "src/stratavoice/strata-db.toml"
+
+# Until strata-python's wav.measure and wer are released (jburnhams/strata-python#65): then drop this and raise the
+# floor above to that release.
+[tool.uv.sources]
+strata-python = { git = "https://github.com/jburnhams/strata-python", rev = "e1ae4305883266ed94e86fd777275b3073116acc" }

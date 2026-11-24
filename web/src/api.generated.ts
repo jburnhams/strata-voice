@@ -175,6 +175,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/takes/{take_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Accept */
+        post: operations["post_accept_api_takes__take_id__accept_post"];
+        /** Delete Accept */
+        delete: operations["delete_accept_api_takes__take_id__accept_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/takes/{take_id}/audio": {
         parameters: {
             query?: never;
@@ -186,6 +204,23 @@ export interface paths {
         get: operations["get_take_audio_api_takes__take_id__audio_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/takes/{take_id}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Score */
+        post: operations["post_score_api_takes__take_id__score_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -227,8 +262,19 @@ export interface components {
             total: number | null;
         };
         /**
+         * Problem
+         * @description One reason a take should be recorded again, in words the speaker can act on.
+         */
+        Problem: {
+            /** Code */
+            code: string;
+            /** Sentence */
+            sentence: string;
+        };
+        /**
          * Progress
-         * @description How far through the queue the speaker is. `seconds` counts every take kept, retries included.
+         * @description How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`
+         *     count every take kept, retries included.
          */
         Progress: {
             /** Prompts */
@@ -329,9 +375,16 @@ export interface components {
         };
         /**
          * TakeOut
-         * @description A kept take, with the prompt it was recorded for. Ids grow with time and are never reused.
+         * @description A kept take, with the prompt it was recorded for and how it was judged (`verdict` null: not scored yet; the
+         *     other fields are explained in models.Take). Ids grow with time and are never reused.
          */
         TakeOut: {
+            /** Accepted */
+            accepted: boolean;
+            /** Asr Model */
+            asr_model: string | null;
+            /** Clipped */
+            clipped: number | null;
             /**
              * Created
              * Format: date-time
@@ -343,6 +396,12 @@ export interface components {
             id: number;
             /** Kind */
             kind: string;
+            /** Noise Db */
+            noise_db: number | null;
+            /** Peak Db */
+            peak_db: number | null;
+            /** Problems */
+            problems: components["schemas"]["Problem"][];
             /** Prompt Id */
             prompt_id: number;
             /** Prompt Text */
@@ -355,6 +414,18 @@ export interface components {
             seconds: number;
             /** Size Bytes */
             size_bytes: number;
+            /** Speech Db */
+            speech_db: number | null;
+            /** Speech End */
+            speech_end: number | null;
+            /** Speech Start */
+            speech_start: number | null;
+            /** Transcript */
+            transcript: string | null;
+            /** Verdict */
+            verdict: string | null;
+            /** Wer */
+            wer: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -697,6 +768,68 @@ export interface operations {
             };
         };
     };
+    post_accept_api_takes__take_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                take_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_accept_api_takes__take_id__accept_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                take_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_take_audio_api_takes__take_id__audio_get: {
         parameters: {
             query?: never;
@@ -714,6 +847,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_score_api_takes__take_id__score_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                take_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeOut"];
+                };
             };
             /** @description Validation Error */
             422: {

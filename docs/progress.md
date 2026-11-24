@@ -1,5 +1,16 @@
 # Progress log
 
+## 2026-11-24: auto-crop and score
+
+- Asked for: step 2, prompted takes only (Jonathan has not much existing audio yet and will gather it later).
+- A take is judged before the upload answers, so the studio can ask again at once. Levels are judged here in under a second; the words wait on strata-models for up to 30 s at `high` priority (someone is at the microphone). When the service is not running, busy past that, or the job fails, the take is `unchecked`: kept and counted, never refused for the service's sake, and `strata-voice score` judges it later, which can send its prompt back to the queue.
+- Whisper is not given the prompt as `initial_prompt`: it would pull the transcript towards the prompt and hide the misreadings the check is for.
+- The crop is two numbers on the take (`speech_start`, `speech_end`: 0.15 s before the first word, 0.25 s after the last), played through `MediaPlayer`'s `window` with the whole timeline shown, and written to the manifest. The master stays the one lossless file; a training tool cuts it.
+- The noise floor is the quietest tenth of 20 ms windows, so a take needs some quiet in it. Real takes have it (the moment between pressing Record and speaking); the tests' tones did not, which is why `tests/utils/takes.py` makes speech-like WAVs.
+- No "starts too soon" or "ends too soon" check yet: Whisper's word times at the very edges of a clip are not reliable enough to refuse a take on. The pilot (step 4) decides whether it is needed, and tunes the thresholds in `scoring.py` (clipped above 2 samples, quiet below a -30 dBFS peak, noisy above a -48 dBFS floor, at most 10 % of the words wrong).
+- A misread take can be kept anyway (`accepted`): names and rare words the recogniser does not know would otherwise block a prompt for good.
+- The level and word-error code is shared: `wav.measure` and `wer` went into strata-python (#65), since strata-models' transcription evals compute the same word error rate. Until released, `pyproject.toml` takes strata-python from that PR's commit.
+
 ## 2026-11-23: the studio shell, on shared recording code
 
 - Asked for: a recording studio first (prompts, then auto-crop and scoring that asks for new takes), spoken voice before written, local first with cloud models allowed for writing prompts, and strata-models hosting the models while this app orchestrates. Then: put the common code in strata-react and strata-python.

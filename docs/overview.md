@@ -12,12 +12,13 @@ Constraints: local first. The takes never leave the speaker's computer. Cloud mo
   - `cli.py`: `doctor`, `prompts`, `takes`, `manifest`, `set`, `serve` (port 8370), `openapi`; the `strata-voice` console script.
   - `server/app.py`: the studio's typed `/api/*` routes (studio state, prompts, raw `audio/wav` take upload, skip and unskip, a cursor-paged takes list, take audio, removal, the JSONL manifest) and the built web app at every other path.
   - `settings.py`: `recordings_dir`, `consented_on` (the date the speaker agreed; blank withdraws), `max_take_seconds`.
-  - `models.py`, `migrations/`, `strata-db.toml`, `db.py`: prompts (key, text, kind, cue, partition, source, position, skipped) and takes (file path, rate, width, frames, size, sha256, device).
+  - `models.py`, `migrations/`, `strata-db.toml`, `db.py`: prompts (key, text, kind, cue, partition, source, position, skipped) and takes (file path, rate, width, frames, size, sha256, device, and the verdict: levels, transcript, word error rate, crop, kept anyway).
   - `curriculum.py`: the en-GB starter set (spontaneous, phonetic, prosodic and expressive prompts, plus a held-out evaluation partition).
-  - `studio.py`: the queue (the first prompt with no take and not skipped), keeping a take (consent, then `read_wav`, then an atomic write named by the row's id), paging and removing takes, and the manifest.
+  - `studio.py`: the queue (the first prompt with no usable take and not skipped), keeping a take (consent, then `read_wav`, then an atomic write named by the row's id), judging it, keeping one anyway, paging and removing takes, and the manifest.
+  - `scoring.py`: a take's verdict (`good`, `retry` with each problem in words, or `unchecked`): clipping, level and noise floor here (`wav.measure`), the words through strata-models' `transcribe` role (word error rate against the prompt, `wer`), and the crop from the word timings. The master is never cut.
   - `system.py`: the app's numbers on the shared System page (takes, seconds of speech, size of the recordings).
 - **React web app (`web/`)** on [strata-react](https://github.com/jburnhams/strata-react):
-  - Screens: Studio (consent, the prompt, Record/Stop/Next with R, N and S, the live input level, the take played back from the server with its level verdict, undoable skip), Takes (every take, newest first, listen and undoable remove), System and Settings.
+  - Screens: Studio (consent, the prompt, Record/Stop/Next with R, N and S, the live input level, the take played back from the server cropped to the speech, with its level and verdict; a take judged `retry` asks again at once, with Keep it anyway on K; undoable skip), Takes (every take, newest first, with its verdict, listen and undoable remove), System and Settings.
   - Recording is strata-react's `useRecorder` (an AudioWorklet with the browser's processing off, written as 16-bit PCM WAV), `InputLevel` and `TakeLevel`; the device comes from `MicrophoneContext`, so tests, stories and screenshots use `fakeMicrophone`.
   - Types from the server: `uv run strata-voice openapi` writes `web/openapi.json`, `npm run api-types` writes `web/src/api.generated.ts`, and `createTypedApi<paths>()` checks every call.
   - MSW handlers for every endpoint (`web/src/mocks/`) serve the jsdom tests, Storybook and the visual suite.

@@ -1,6 +1,6 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { initialTakes } from '../../src/mocks/fixtures'
+import { initialTakes, makeTakes } from '../../src/mocks/fixtures'
 import { removeFails, takesEmpty, takesError, takesMany } from '../../src/mocks/handlers'
 import { openApp, screen, waitFor, within } from '../utils/render'
 import { mock, server } from '../utils/server'
@@ -16,6 +16,18 @@ describe('Takes', () => {
     expect(items()).toHaveLength(3)
     expect(items()[0]).toHaveTextContent(initialTakes[0].prompt_text)
     expect(items()[0]).toHaveTextContent('Read aloud')
+    expect(items()[0]).toHaveTextContent('Good take')
+  })
+
+  it('says how each take was judged, and plays one not yet checked whole', async () => {
+    mock.takes = makeTakes(11) // take 7 missed words, take 11 was not checked
+    const { user } = openApp('/takes')
+    expect(await screen.findByText('That is every take.')).toBeInTheDocument()
+    const words = items().map(row => within(row).getByText(/^(Good take|Record again|Not checked)$/).textContent)
+    expect(words.filter(w => w === 'Record again')).toHaveLength(1)
+    expect(words[0]).toBe('Not checked')
+    await user.click(within(items()[0]).getByRole('button', { name: `Listen to ${mock.takes[0].prompt_text}` }))
+    expect(screen.getByRole('group', { name: `Take of “${mock.takes[0].prompt_text}”` })).toBeInTheDocument()
   })
 
   it('plays the take chosen in one player above the list', async () => {

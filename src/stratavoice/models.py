@@ -12,7 +12,7 @@ on the shared Postgres; see strata-python's README, "Database"."""
 
 import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, MetaData, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 from strata_python.db import NAMING_CONVENTION
 
@@ -66,3 +66,21 @@ class Take(Base):
     device: Mapped[str | None] = mapped_column(String(200))
     created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
     root: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # How the take was judged (scoring.py), all null until it is scored. `verdict` is `good`, `retry` (a problem the
+    # speaker should record again for: `problems` names each) or `unchecked` (the levels were fine but the speech
+    # could not be transcribed yet). The levels are dBFS from strata_python.wav.measure; `speech_start`/`speech_end`
+    # are the crop, from the transcript's word timings, in seconds into the master (which is never cut).
+    verdict: Mapped[str | None] = mapped_column(String(10), default=None, index=True)
+    problems: Mapped[str] = mapped_column(String(200), default="", server_default="")  # codes, space-separated
+    scored: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    peak_db: Mapped[float | None] = mapped_column(Float, default=None)
+    noise_db: Mapped[float | None] = mapped_column(Float, default=None)
+    speech_db: Mapped[float | None] = mapped_column(Float, default=None)
+    clipped: Mapped[int | None] = mapped_column(Integer, default=None)
+    transcript: Mapped[str | None] = mapped_column(String(2000), default=None)
+    asr_model: Mapped[str | None] = mapped_column(String(100), default=None)
+    wer: Mapped[float | None] = mapped_column(Float, default=None)
+    speech_start: Mapped[float | None] = mapped_column(Float, default=None)
+    speech_end: Mapped[float | None] = mapped_column(Float, default=None)
+    # The speaker kept a take that was judged `retry` (a name the recogniser does not know, a deliberate cough).
+    accepted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())

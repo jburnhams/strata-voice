@@ -10,7 +10,7 @@
 // relative <base> back to its root, so the app works behind a reverse proxy at /<prefix>/), and a
 // non-2xx answer throws HttpError with the server's own sentence (`detail`) as its `reason`. The one
 // body that is not JSON, a take's WAV, goes through `postTake`.
-import { createTypedApi, fetchJson } from 'strata-react'
+import { createTypedApi, fetchJson, type Tone } from 'strata-react'
 import type { paths, Schema } from './api.generated'
 
 export type Settings = Schema<'StratavoiceSettings'>
@@ -46,6 +46,22 @@ export function postTake(promptId: number, wav: Blob, device: string | null): Pr
 
 /** Where a take's WAV is served, for a player's `src`. */
 export const takeAudio = (id: number) => api.url(`/api/takes/${id}/audio`)
+
+/** A take's crop (scoring.py's `speech_start`..`speech_end`) as a player's `window`, or undefined before it is scored:
+ *  playback starts at the first word and stops after the last, while the master on disk stays whole. */
+export function crop(t: Take): { start: number; end: number } | undefined {
+  return t.speech_start === null || t.speech_end === null ? undefined : { start: t.speech_start, end: t.speech_end }
+}
+
+/** Whether a take counts for its prompt: anything but a `retry` the speaker did not keep anyway (studio._usable). */
+export const usable = (t: Take) => t.verdict !== 'retry' || t.accepted
+
+/** A take's verdict as a status word, the same on every screen. */
+export function verdictWord(t: Take): { tone: Tone; word: string } {
+  if (t.verdict === 'good') return { tone: 'success', word: 'Good take' }
+  if (t.verdict === 'retry') return t.accepted ? { tone: 'info', word: 'Kept anyway' } : { tone: 'warning', word: 'Record again' }
+  return { tone: 'neutral', word: 'Not checked' }
+}
 
 /** Today as the server's settings write a date (YYYY-MM-DD), in the person's own time zone. */
 export function today(now = new Date()): string {

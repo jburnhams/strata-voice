@@ -1,7 +1,17 @@
 import { expectOneFilledButton, fakeMicrophone } from 'strata-react/testing'
 import { describe, expect, it } from 'vitest'
 import { initialPrompts } from '../../src/mocks/fixtures'
-import { consentFails, keepFails, skipFails, studioDone, studioError, studioNotConsented } from '../../src/mocks/handlers'
+import {
+  acceptFails,
+  consentFails,
+  keepFails,
+  keepMisread,
+  keepUnchecked,
+  skipFails,
+  studioDone,
+  studioError,
+  studioNotConsented,
+} from '../../src/mocks/handlers'
 import { openApp, screen, waitFor, within } from '../utils/render'
 import { mock, server } from '../utils/server'
 
@@ -31,6 +41,8 @@ describe('Studio', () => {
     expect(screen.getByText('Good level')).toBeInTheDocument()
     expect(screen.getByText(/^Kept 0:\d\d, peak -10\sdBFS\./)).toBeInTheDocument()
     expect(screen.getByRole('group', { name: `Your take of “${fourth.text}”` })).toBeInTheDocument()
+    expect(screen.getByText('Good take')).toBeInTheDocument()
+    expect(screen.getByText('Every word was heard. Played from just before the first word to just after the last.')).toBeInTheDocument()
     const kept = mock.takes[0]
     expect([kept.prompt_id, kept.sample_rate, kept.device]).toEqual([fourth.id, 16_000, 'Fake USB microphone'])
     expect(kept.seconds).toBeGreaterThan(0)
@@ -62,6 +74,81 @@ describe('Studio', () => {
     await user.keyboard('s')
     expect(await screen.findByRole('heading', { level: 2, name: initialPrompts[5].text })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Undo' })) // nothing left to commit after the test
+  })
+
+  it('asks again at once for a take that missed words, and keeps it anyway when asked', async () => {
+    server.use(keepMisread)
+    const { user } = openApp('/')
+    await user.click(await screen.findByRole('button', { name: 'Record' }))
+    await screen.findByRole('meter', { name: 'Input level' })
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Record it again')
+    expect(alert).toHaveTextContent(
+      `Some words were not the prompt's: “boat’s”, “sail”. It heard “She measured the beige fabric twice before cutting the pleasure”.`,
+    )
+    expect(screen.queryByRole('button', { name: 'Next prompt' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Record again' })).toHaveAttribute('data-variant', 'default')
+    expectOneFilledButton()
+    await user.keyboard('n') // no moving on past a take judged for another
+    expect(screen.getByRole('heading', { level: 2, name: fourth.text })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Record again' }))
+    await user.click(await screen.findByRole('button', { name: 'Stop' }))
+    expect(await screen.findByRole('button', { name: 'Keep it anyway' })).toBeInTheDocument()
+    expect(mock.takes.filter(t => t.prompt_id === fourth.id)).toHaveLength(2) // both judged for another
+
+    await user.click(screen.getByRole('button', { name: 'Keep it anyway' }))
+    expect(await screen.findByRole('heading', { level: 2, name: fifth.text })).toBeInTheDocument()
+    expect(mock.takes[0]).toMatchObject({ prompt_id: fourth.id, verdict: 'retry', accepted: true })
+  })
+
+  it('keeps a misread take with K, skips one with S, and says when keeping it failed', async () => {
+    server.use(keepMisread, acceptFails)
+    const { user } = openApp('/')
+    await screen.findByRole('heading', { level: 2, name: fourth.text })
+    await user.keyboard('r')
+    await screen.findByRole('meter', { name: 'Input level' })
+    await user.keyboard('r')
+    await screen.findByRole('button', { name: 'Keep it anyway' })
+    await user.keyboard('k')
+    expect(await screen.findByText('The server could not answer (503). Try Keep it anyway again, or record it again.')).toBeInTheDocument()
+    expect(mock.takes[0].accepted).toBe(false)
+
+    await user.keyboard('s') // a prompt that will not come right: skipped, and the studio moves on
+    expect(await screen.findByRole('heading', { level: 2, name: fifth.text })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+  })
+
+  it('skips a misread prompt with the Skip button', async () => {
+    server.use(keepMisread)
+    const { user } = openApp('/')
+    await user.click(await screen.findByRole('button', { name: 'Record' }))
+    await screen.findByRole('meter', { name: 'Input level' })
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    await user.click(await screen.findByRole('button', { name: 'Skip' }))
+    expect(await screen.findByRole('heading', { level: 2, name: fifth.text })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+  })
+
+  it('keeps a take whose words could not be checked, and says so', async () => {
+    server.use(keepUnchecked)
+    const { user } = openApp('/')
+    await user.click(await screen.findByRole('button', { name: 'Record' }))
+    await screen.findByRole('meter', { name: 'Input level' })
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await screen.findByText('Not checked')).toBeInTheDocument()
+    expect(screen.getByText(/^The words were not checked: the speech recogniser was not running\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next prompt' })).toBeInTheDocument()
+  })
+
+  it('shows what was heard for a prompt with no fixed words', async () => {
+    mock.takes = []
+    const { user } = openApp('/')
+    expect(await screen.findByRole('heading', { level: 2, name: initialPrompts[0].text })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Record' }))
+    await screen.findByRole('meter', { name: 'Input level' })
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await screen.findByText(/^Heard “Last weekend I walked along the canal/)).toBeInTheDocument()
   })
 
   it('skips a prompt with Undo in reach, and commits the skip when the window closes', async () => {

@@ -10,7 +10,8 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from strata_python.testing import CliResult, sine_wav
+from strata_python.testing import CliResult, FakeModels, sine_wav
+from takes import heard, speech
 
 Cli = Callable[..., CliResult]  # the `cli` fixture (tests/integration/conftest.py)
 
@@ -38,19 +39,26 @@ def call(base: str, method: str, path: str, body: object = None, wav: bytes | No
         return e.code, json.loads(e.read())
 
 
-def test_a_take_posted_over_http_is_kept_played_back_and_seen_by_the_cli(server: str, cli: Cli):
+def test_a_take_posted_over_http_is_kept_judged_played_back_and_seen_by_the_cli(
+    server: str, cli: Cli, models: FakeModels
+):
     status, health = call(server, "GET", "/api/health")
     assert (status, health["ok"], health["version"]) == (200, True, "0.1.0")
     first = call(server, "GET", "/api/studio")[1]["queue"][0]
     assert call(server, "POST", f"/api/prompts/{first['id']}/takes", wav=sine_wav(1.0))[0] == 400  # no consent yet
     assert call(server, "PUT", "/api/settings", {"consented_on": "2026-11-23"})[0] == 200
 
-    data = sine_wav(2.0, rate=44_100, width=3)
+    models.down = False
+    models.results["transcribe"] = heard("I spent last weekend walking by the sea", start=0.4, end=1.6)
+    data = speech(2.0, rate=44_100, width=3)
     status, take = call(server, "POST", f"/api/prompts/{first['id']}/takes?device=Desk%20mic", wav=data)
     assert (status, take["seconds"], take["sample_width"], take["device"]) == (200, 2.0, 3, "Desk mic")
+    assert (take["verdict"], take["speech_start"], take["speech_end"]) == ("good", 0.25, 1.85)  # judged and cropped
     assert call(server, "GET", f"/api/takes/{take['id']}/audio") == (200, data)
     assert "1 take(s)" in cli("prompts").stdout
-    assert json.loads(cli("manifest").stdout)["audio"]["seconds"] == 2.0
+    record = json.loads(cli("manifest").stdout)
+    assert (record["audio"]["seconds"], record["text"]) == (2.0, "I spent last weekend walking by the sea")
+    assert "good" in cli("takes").stdout
     assert call(server, "GET", "/api/studio")[1]["queue"][0]["id"] != first["id"]
     assert call(server, "DELETE", f"/api/takes/{take['id']}")[0] == 200
     assert "no takes yet" in cli("takes").stdout

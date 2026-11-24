@@ -1,8 +1,16 @@
 import { readFileSync } from 'node:fs'
 import { colorSchemeScript, format } from 'strata-react'
 import { describe, expect, it } from 'vitest'
-import { kindName, today } from '../../src/api'
-import { initialPrompts, makeTakes, silentWav, systemNearlyFull, systemStatus } from '../../src/mocks/fixtures'
+import { crop, kindName, today, usable, verdictWord } from '../../src/api'
+import {
+  initialPrompts,
+  makeTakes,
+  misreadScore,
+  silentWav,
+  systemNearlyFull,
+  systemStatus,
+  uncheckedScore,
+} from '../../src/mocks/fixtures'
 import { mock, studioOf, takePage } from '../../src/mocks/handlers'
 import { secondsProblem } from '../../src/screens/SettingsScreen'
 import { describeProgress } from '../../src/screens/StudioScreen'
@@ -28,6 +36,29 @@ describe('the studio finding', () => {
 
   it("writes today's date as the settings do, in the person's own zone", () => {
     expect(today(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05')
+  })
+})
+
+describe("a take's verdict", () => {
+  const [good] = makeTakes(1)
+  const misread = { ...good, ...misreadScore(initialPrompts[0], good.seconds) }
+  const unchecked = { ...good, ...uncheckedScore(initialPrompts[0], good.seconds) }
+
+  it('reads the same word on every screen', () => {
+    expect(verdictWord(good)).toEqual({ tone: 'success', word: 'Good take' })
+    expect(verdictWord(misread)).toEqual({ tone: 'warning', word: 'Record again' })
+    expect(verdictWord({ ...misread, accepted: true })).toEqual({ tone: 'info', word: 'Kept anyway' })
+    expect(verdictWord(unchecked)).toEqual({ tone: 'neutral', word: 'Not checked' })
+    expect(verdictWord({ ...good, verdict: null })).toEqual({ tone: 'neutral', word: 'Not checked' })
+  })
+
+  it('counts a take for its prompt unless it is to be recorded again', () => {
+    expect([good, misread, { ...misread, accepted: true }, unchecked].map(usable)).toEqual([true, false, true, true])
+  })
+
+  it('plays a scored take from just before its first word to just after its last', () => {
+    expect(crop(good)).toEqual({ start: 0.2, end: good.seconds - 0.2 })
+    expect(crop(unchecked)).toBeUndefined()
   })
 })
 
