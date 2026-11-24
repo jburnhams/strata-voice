@@ -85,7 +85,7 @@ describe('Studio', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Record it again')
     expect(alert).toHaveTextContent(
-      `Some words were not the prompt's: “boat’s”, “sail”. It heard “She measured the beige fabric twice before cutting the pleasure”.`,
+      `Some words were not the prompt's: “the”, “wardrobe”. It heard “A quiet young queen wrapped twelve woollen scarves in”.`,
     )
     expect(screen.queryByRole('button', { name: 'Next prompt' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Record again' })).toHaveAttribute('data-variant', 'default')
@@ -139,16 +139,6 @@ describe('Studio', () => {
     expect(await screen.findByText('Not checked')).toBeInTheDocument()
     expect(screen.getByText(/^The words were not checked: the speech recogniser was not running\./)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next prompt' })).toBeInTheDocument()
-  })
-
-  it('shows what was heard for a prompt with no fixed words', async () => {
-    mock.takes = []
-    const { user } = openApp('/')
-    expect(await screen.findByRole('heading', { level: 2, name: initialPrompts[0].text })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Record' }))
-    await screen.findByRole('meter', { name: 'Input level' })
-    await user.click(screen.getByRole('button', { name: 'Stop' }))
-    expect(await screen.findByText(/^Heard “Last weekend I walked along the canal/)).toBeInTheDocument()
   })
 
   it('skips a prompt with Undo in reach, and commits the skip when the window closes', async () => {

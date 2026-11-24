@@ -30,8 +30,7 @@ def test_nothing_recorded_yet(db_session: Session):
 
 def test_a_session_against_each_threshold(db_session: Session, consented: None, models: FakeModels):
     studio.seed(db_session)
-    read = [p for p in studio.prompts(db_session) if p.kind == "phonetic"][:2]
-    spont = next(p for p in studio.prompts(db_session) if p.kind == "spontaneous")
+    read = [p for p in studio.prompts(db_session) if p.kind == "phonetic"][:3]
     start = datetime.datetime(2026, 11, 24, 9, 0, tzinfo=datetime.UTC)
 
     old = studio.add_take(db_session, read[0].id, speech())  # yesterday's session: not in the report
@@ -45,8 +44,8 @@ def test_a_session_against_each_threshold(db_session: Session, consented: None, 
     wrong = studio.add_take(db_session, read[1].id, speech(2.0))
     studio.score_take(db_session, wrong.id)
     studio.accept_take(db_session, wrong.id)
-    models.results["transcribe"] = heard("I went for a walk by the river")
-    talk = studio.add_take(db_session, spont.id, speech(2.0))
+    models.results["transcribe"] = heard(read[2].text)
+    talk = studio.add_take(db_session, read[2].id, speech(2.0))
     studio.score_take(db_session, talk.id)
     models.results["transcribe"] = heard(read[0].text)
     again = studio.add_take(db_session, read[0].id, speech(2.0))  # Record again after a good take: only one is kept
@@ -69,7 +68,7 @@ def test_a_session_against_each_threshold(db_session: Session, consented: None, 
     assert p.lead.median == pytest.approx(0.15)  # the first word at 0.3 s, less PAD_BEFORE
     checks = {c.code: c for c in p.checks}
     words = checks["words"]
-    assert (words.measured, words.failed, words.limit) == (3, 1, scoring.MAX_WER)  # the spontaneous take has no WER
+    assert (words.measured, words.failed, words.limit) == (4, 1, scoring.MAX_WER)
     peak = checks["quiet"]
     assert (peak.measured, peak.failed, peak.fails_when) == (4, 0, "below")
     assert checks["clipped"].near == 0

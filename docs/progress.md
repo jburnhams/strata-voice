@@ -1,5 +1,10 @@
 # Progress log
 
+## 2026-11-24: no free-talk prompts
+
+- Asked for: "i dont want talk freely prompts". The spec's first curriculum group (about 90 s of unscripted talk, for the speaker's own rhythm) is gone: the three `spont-*` prompts are out of the starter set, and every prompt is now read from its text, so scoring always checks the words and the manifest's text is always the prompt's. The prompt writer never wrote free-talk prompts (its kinds are phonetic, prosodic and expressive), so it needed no change.
+- An existing database: seeding drops a starter prompt the curriculum no longer has unless it has a take (a recording is the speaker's, so its prompt stays with it).
+
 ## 2026-11-24: step 4, the pilot report
 
 - Asked for: "What's next bit of work", step 4 (the pilot). The session itself is Jonathan's to record; the report is what tunes the thresholds from it, so it came first.

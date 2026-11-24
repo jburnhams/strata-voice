@@ -1,13 +1,17 @@
+import datetime
 import hashlib
 import json
 import os
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from strata_python.testing import sine_wav
+from takes import speech
 
 from stratavoice import curriculum, phonemes, settings, studio
+from stratavoice.models import Prompt
 
 
 @pytest.fixture
@@ -38,19 +42,36 @@ def test_the_queue_moves_on_past_recorded_and_skipped_prompts(db_session: Sessio
     studio.add_take(db_session, first.queue[0].id, sine_wav(1.0), device="USB mic")
     second = studio.next_prompt(db_session)
     assert second is not None
-    assert second.key == "spont-02"
+    assert second.key == "phon-02"
     assert studio.skip(db_session, second.id).skipped
     third = studio.next_prompt(db_session)
     assert third is not None
-    assert third.key == "spont-03"
+    assert third.key == "phon-03"
     assert not studio.skip(db_session, second.id, skipped=False).skipped
     back = studio.next_prompt(db_session)
     assert back is not None
-    assert back.key == "spont-02"  # put back: in its place again
+    assert back.key == "phon-02"  # put back: in its place again
 
     studio.add_take(db_session, first.queue[0].id, sine_wav(2.0))  # a retry: another take of the same prompt
     p = studio.progress(db_session)
     assert (p.recorded, p.skipped, p.takes, p.seconds) == (1, 0, 2, 3.0)
+
+
+def test_free_talk_prompts_from_an_older_curriculum_leave_unless_recorded(db_session: Session, consented: None):
+    studio.seed(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+    for key in ("spont-01", "spont-02"):  # as a database seeded before 2026-11-24 has them
+        db_session.add(
+            Prompt(key=key, text="Talk about your weekend.", kind="spontaneous", cue=None, partition="train",
+                   source="starter", position=0, created=now)
+        )  # fmt: skip
+    db_session.commit()
+    kept = db_session.scalars(select(Prompt).where(Prompt.key == "spont-02")).one()
+    studio.add_take(db_session, kept.id, speech())
+    assert studio.seed(db_session) == 0
+    keys = set(db_session.scalars(select(Prompt.key)))
+    assert ("spont-01" in keys, "spont-02" in keys) == (False, True)  # a recorded one stays with its take
+    assert all(p.kind != "spontaneous" for p in studio.upcoming(db_session, 100))
 
 
 def test_a_take_is_written_as_a_wav_master_and_described(db_session: Session, consented: None):
@@ -117,18 +138,17 @@ def test_takes_are_paged_newest_first_and_removed_with_their_files(db_session: S
 
 def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Session, consented: None):
     listed = studio.prompts(db_session)
-    spont, phon = listed[0], listed[3]
+    first, phon = listed[0], listed[3]
     expr = next(p for p in listed if p.kind == "expressive")
     studio.add_take(db_session, phon.id, sine_wav(0.5))
     newest = sine_wav(1.0, hz=330)
     retry = studio.add_take(db_session, phon.id, newest, device="Desk mic")
     studio.add_take(db_session, expr.id, sine_wav(0.5))
-    studio.add_take(db_session, spont.id, sine_wav(0.5))
+    studio.add_take(db_session, first.id, sine_wav(0.5))
 
     records = list(studio.manifest(db_session))
-    assert [r["prompt"]["key"] for r in records] == [spont.key, phon.key, expr.key]  # queue order
-    spont_rec, phon_rec, expr_rec = records
-    assert spont_rec["text"] is None  # nothing fixed to say, and not transcribed yet
+    assert [r["prompt"]["key"] for r in records] == [first.key, phon.key, expr.key]  # queue order
+    _, phon_rec, expr_rec = records
     assert phon_rec == {
         "id": f"take_{retry.id:06d}",
         "source": "human",
@@ -161,7 +181,6 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
     }
     assert (expr_rec["requested_style"]["category"], expr_rec["requested_style"]["label"]) == ("excited", expr.cue)
     assert expr_rec["elicitation"]["mode"] == "written_label"
-    assert (spont_rec["phonemes"], spont_rec["requested_style"]) == (None, None)  # the speaker's own words and manner
     assert json.loads(studio.manifest_line(phon_rec)) == phon_rec
     assert studio.manifest_line(phon_rec).endswith("}\n")
 

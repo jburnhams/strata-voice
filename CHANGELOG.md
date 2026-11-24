@@ -4,6 +4,15 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 ## 2026-11-24
 
+**strata-voice: no free-talk prompts (branch `claude/project-thread-cvjjmf`)**
+Jonathan does not want "talk freely" prompts, so the starter set's spontaneous group is removed and every prompt is read from its text. The prompt writer already wrote only phonetic, prosodic and expressive prompts.
+- `src/stratavoice/curriculum.py`: the `spont-*` seeds and the `spontaneous` kind removed; `style()` always gives one.
+- `src/stratavoice/studio.py`: `seed` drops starter prompts the curriculum no longer has unless they have a take; the manifest's text and phonemes are always the prompt's.
+- `src/stratavoice/scoring.py`, `coverage.py`, `pilot.py`, `models.py`: the free-talk branches (no WER, the transcript as text) removed.
+- Web: `api.ts` (no "Talk freely" group name), `StudioScreen.tsx` (`TakeVerdict` no longer needs the prompt), mock fixtures (`phon-03` and `phon-04` in place of the two free-talk prompts), the free-talk studio test removed. Visual baselines rewritten by `update-visual-baselines.yml`: the studio, takes and coverage shots show the new fixture prompts.
+- Tests: the free-talk scoring test removed; a seeding test for an older database; coverage, pilot, studio and integration tests read prompts with text.
+- Docs: overview, progress, tests/unit/README.
+
 **strata-voice: the pilot report (branch `claude/project-thread-cvjjmf`)**
 Step 4 of the plan is a recorded session, then thresholds tuned from it; the session is Jonathan's to record, so this adds the report that the tuning reads.
 - `src/stratavoice/pilot.py` (**new**): `session` (the newest run of takes with no gap over 30 minutes, or every take from a day), `report` (verdicts, takes per prompt, recorded speech, kept speech counted from each prompt's newest usable take as the manifest exports it (Codex review), speech per minute, the crop's lead and tail, and each of `scoring.py`'s checks with its spread, failures and near misses) and `describe`.

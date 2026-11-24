@@ -49,7 +49,7 @@ def test_a_take_posted_over_http_is_kept_judged_played_back_and_seen_by_the_cli(
     assert call(server, "PUT", "/api/settings", {"consented_on": "2026-11-23"})[0] == 200
 
     models.down = False
-    models.results["transcribe"] = heard("I spent last weekend walking by the sea", start=0.4, end=1.6)
+    models.results["transcribe"] = heard(first["text"], start=0.4, end=1.6)
     data = speech(2.0, rate=44_100, width=3)
     status, take = call(server, "POST", f"/api/prompts/{first['id']}/takes?device=Desk%20mic", wav=data)
     assert (status, take["seconds"], take["sample_width"], take["device"]) == (200, 2.0, 3, "Desk mic")
@@ -57,7 +57,7 @@ def test_a_take_posted_over_http_is_kept_judged_played_back_and_seen_by_the_cli(
     assert call(server, "GET", f"/api/takes/{take['id']}/audio") == (200, data)
     assert "1 take(s)" in cli("prompts").stdout
     record = json.loads(cli("manifest").stdout)
-    assert (record["audio"]["seconds"], record["text"]) == (2.0, "I spent last weekend walking by the sea")
+    assert (record["audio"]["seconds"], record["text"]) == (2.0, first["text"])
     assert "good" in cli("takes").stdout
     assert call(server, "GET", "/api/studio")[1]["queue"][0]["id"] != first["id"]
     assert call(server, "DELETE", f"/api/takes/{take['id']}")[0] == 200
