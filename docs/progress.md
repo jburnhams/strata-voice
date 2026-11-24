@@ -1,5 +1,12 @@
 # Progress log
 
+## 2026-11-24: step 4, the pilot report
+
+- Asked for: "What's next bit of work", step 4 (the pilot). The session itself is Jonathan's to record; the report is what tunes the thresholds from it, so it came first.
+- A session is a run of takes with no gap over 30 minutes, the newest by default. A check reports least, median and most, failures, and near misses: within 6 dB of a level limit on the passing side, or any clipping or any wrong word at all (the limits allow a couple of samples and one word in ten, so a passing take with either is still worth seeing).
+- Kept speech per minute at the microphone is the session's efficiency: the starter set's "about ten minutes of speech" is speech kept, not time spent, and this says how long that takes.
+- CLI only for now (`--json` for tuning by hand or by agent); a screen can follow if the pilot shows it is wanted.
+
 
 ## 2026-11-24: step 3, prompts written by a cloud model and ranked by coverage
 

@@ -34,6 +34,8 @@ def test_coverage_of_a_fresh_studio_is_the_whole_inventory_missing(cli: Cli):
     assert "ranked 0 generated prompt(s)" in cli("rank").stdout
     listed = json.loads(cli("prompts", "--json").stdout)
     assert {p["style"] for p in listed if p["kind"] == "expressive"} >= {"whispered", "tired"}
+    assert "No takes yet" in cli("pilot").stdout
+    assert json.loads(cli("pilot", "--json").stdout)["takes"] == 0
 
 
 def test_settings_are_viewed_and_updated_from_the_command_line(cli: Cli):

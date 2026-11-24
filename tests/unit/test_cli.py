@@ -130,3 +130,19 @@ def test_coverage_write_and_rank_commands(capsys: pytest.CaptureFixture[str], db
     assert "espeak-ng was not found" in capsys.readouterr().out
     assert cli.main(["doctor"]) == 0  # optional: the studio records without it
     assert "install espeak-ng" in capsys.readouterr().out
+
+
+def test_pilot_command(capsys: pytest.CaptureFixture[str], db_env: str):
+    assert cli.main(["pilot"]) == 0
+    assert "No takes yet" in capsys.readouterr().out
+    settings.SETTINGS.save({"consented_on": "2026-11-24"})
+    with db.session() as s:
+        studio.seed(s)
+        studio.add_take(s, studio.prompts(s)[0].id, speech())
+    assert cli.main(["pilot"]) == 0
+    out = capsys.readouterr().out
+    assert "1 take(s) of 1 prompt(s)" in out
+    assert "Peak level: nothing measured." in out  # not scored yet
+    assert cli.main(["pilot", "--since", "2000-01-01", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert (report["takes"], report["verdicts"]["unscored"]) == (1, 1)
