@@ -159,6 +159,11 @@ def _answer(result: sm.Json) -> list[object]:
     return list(items)  # pyright: ignore[reportUnknownArgumentType] - JSON from the model, checked item by item
 
 
+def _same(text: str) -> str:
+    """A text as compared for repeats: case and spacing do not make a new prompt."""
+    return " ".join(text.casefold().split())
+
+
 def write(db: Session, count: int = DEFAULT_COUNT) -> Written:
     """Ask the writer for `count` prompts, keep the good ones, and rank the queue."""
     if not 1 <= count <= MAX_COUNT:
@@ -181,6 +186,10 @@ def write(db: Session, count: int = DEFAULT_COUNT) -> Written:
         raise WriterFailed(f"The prompt writer failed: {e}") from None
     items = _answer(result)
     have = set(db.scalars(select(Prompt.key)))
+    # Starter keys are names (phon-01, eval-01), not text hashes, so the key alone misses a starter sentence written
+    # again; and an eval sentence repeated as a train prompt would leak the held-out text. Any prompt's text, whatever
+    # its cue, is a repeat.
+    said = {_same(t) for t in db.scalars(select(Prompt.text))}
     added = 0
     for item in items:
         ok = check(item)
@@ -188,9 +197,10 @@ def write(db: Session, count: int = DEFAULT_COUNT) -> Written:
             continue
         text, kind, style, cue = ok
         key = _key(text, cue)
-        if key in have:
+        if key in have or _same(text) in said:
             continue
         have.add(key)
+        said.add(_same(text))
         added += 1
         db.add(
             Prompt(

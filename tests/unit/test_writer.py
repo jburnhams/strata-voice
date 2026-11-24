@@ -73,13 +73,15 @@ def test_candidates_that_break_a_rule_or_repeat_are_dropped(db_session: Session,
         candidate("A fine sentence about the weather.", style="ecstatic"),  # unknown style: neutral
         candidate("A fine sentence about the weather."),  # the same again
         candidate("“A quoted sentence about the garden.”", cue="   "),
+        candidate(starter.text.upper(), cue="a new cue"),  # a starter sentence again, in other case and cue
     )
-    done = writer.write(db_session, 9)
-    assert (done.offered, done.added) == (9, 2)
+    done = writer.write(db_session, 10)
+    assert (done.offered, done.added) == (10, 2)
     texts = {r.text: r for r in _generated(db_session)}
     assert texts["A fine sentence about the weather."].style == "neutral"
     assert texts["A quoted sentence about the garden."].cue is None
     assert starter.text not in texts
+    assert starter.text.upper() not in texts
 
     up.results["write"] = offer(candidate("A fine sentence about the weather."), as_text=True)  # a second batch
     again = writer.write(db_session, 1)
