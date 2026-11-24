@@ -24,6 +24,7 @@ The thresholds are first guesses from the usual figures for recorded speech; ste
 import datetime
 import logging
 
+from sqlalchemy import ColumnElement, or_
 from sqlalchemy.orm import Session
 from strata_python.clients import models as sm
 from strata_python.contracts import ApiModel
@@ -54,6 +55,12 @@ PAD_BEFORE = 0.15
 PAD_AFTER = 0.25
 
 GOOD, RETRY, UNCHECKED = "good", "retry", "unchecked"
+
+
+def usable() -> ColumnElement[bool]:
+    """A take that counts for its prompt (the queue, progress, the manifest, coverage): anything but a `retry` the
+    speaker did not keep anyway."""
+    return or_(Take.verdict.is_(None), Take.verdict != RETRY, Take.accepted)
 
 
 class Problem(ApiModel):

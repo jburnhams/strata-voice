@@ -4,6 +4,23 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 ## 2026-11-24
 
+**strata-voice: prompts written by a cloud model and ranked by en-GB coverage (branch `claude/project-thread-cvjjmf`)**
+Step 3 of docs/implementation-plan.md (Jonathan: "Next work"). After the starter set, a cloud model writes prompts aimed at what the recordings lack, and a local, deterministic ranker asks for the ones that add the most per second first (spec §6, §7.1, §7.3). Needs strata-models#119 (the `write` role) for writing; coverage and ranking need only espeak-ng.
+
+- `src/stratavoice/phonemes.py` (**new**): RP phonemes of a text from espeak-ng (`en-gb-x-rp`, run with the text on stdin), parsed into words with stress patterns, folded into a 43-phoneme inventory (RP's 44 less /ʊə/, merged into /ɔː/ as espeak's RP has it); `Unavailable` when espeak is missing or fails.
+- `src/stratavoice/coverage.py` (**new**): a text's units (phonemes, phoneme pairs, stress patterns, length, sentence type, style), counted over every prompt with a usable take (a spontaneous one by its transcript); `rank` orders the generated prompts by new coverage per second, cut by overlap with what is recorded or ranked above (greedy); `due` every 5 usable takes; `coverage()` for the screen and CLI.
+- `src/stratavoice/writer.py` (**new**): `write(db, count)` asks strata-models' `write` role for a batch with a brief of what is missing and a JSON schema, keeps the candidates that pass (3 to 30 words, no digits, a known kind; an unknown style is neutral), keyed by a hash of words and cue, then ranks; `WriterFailed` (502) for a bad answer, a failed job or a timeout, `Unavailable` (503) when strata-models is down.
+- `src/stratavoice/curriculum.py`: `STYLES` (EmotionML everyday categories, neutral, four stances) and each starter prompt's style.
+- `src/stratavoice/models.py`, `migrations/20261124_7866650ef15c_prompt_coverage.py` (**new**): a prompt's `style`, `phonemes`, `writer` and `score`, all nullable.
+- `src/stratavoice/studio.py`: seeding stores style and phonemes and fills them on older rows; starter positions counted among the starter set; `PromptOut` gains `style`, `source`, `score`; `score_take` ranks again when due; the manifest gains `phonemes`, `requested_style` as `{vocabulary, category, label}` and the prompt's `writer` (corrects step 1's `{label}` only).
+- `src/stratavoice/scoring.py`: `usable()` moved here from studio so coverage can use it.
+- `src/stratavoice/settings.py`: `espeak`, the program when it is not on the PATH.
+- `src/stratavoice/server/app.py`: `GET /api/coverage`, `POST /api/prompts/write` (`WriterFailed` answers 502). `src/stratavoice/cli.py`: `coverage`, `write`, `rank`, and an optional espeak-ng check in `doctor`.
+- Web: `screens/CoverageScreen.tsx` (**new**; what is said and missing per group, least said first, and Write 40 more prompts), on the nav and routes; `api.ts` types and key; mocks `coverage-sample.ts` (**new**, written by the server's own `coverage()` over the starter set's read prompts), handlers for coverage and writing with their states, fixtures with style, source and score; `stories/coverage.stories.tsx` (**new**); the visual config's `coverage` route.
+- Tests: `tests/unit/test_phonemes.py`, `test_coverage.py`, `test_writer.py` (**new**), `tests/utils/prompts.py` (**new**), CLI, server, studio and integration CLI tests; web `CoverageScreen.test.tsx` (**new**) and logic tests. Python and web coverage 100%.
+- CI: `unit.yml` and `integration.yml` install espeak-ng on every runner (apt, brew, the project's MSI on Windows).
+- Docs: README (espeak-ng, the new commands), AGENTS, overview, implementation-plan (step 3 checked), progress, tests/unit/README.
+
 **strata-voice: auto-crop and score each take, and ask again for one that fails (branch `claude/project-thread-cvjjmf`)**
 Step 2 of docs/implementation-plan.md, for prompted takes only (Jonathan: "Not much let's just do promoted recordings for now"), so importing existing audio is left for later. The level and word-error code went into strata-python first (jburnhams/strata-python#65), as the shared audio code does.
 

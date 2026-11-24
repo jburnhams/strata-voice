@@ -1,7 +1,8 @@
 """Command line. From strata-python: `doctor` (versions and imports), `set` (a setting), `serve` (the web server) and
 `openapi` (the schema file the web app's types are generated from). The app's own: `prompts` lists the queue with
 how far each prompt has got, `takes` lists the kept takes with their verdicts, `score` judges the takes not judged yet
-(after strata-models was not running), and `manifest` writes the dataset manifest (JSONL)."""
+(after strata-models was not running), `manifest` writes the dataset manifest (JSONL), `coverage` says what the
+recordings cover and lack, `write` has the prompt writer add a batch of prompts, and `rank` orders the queue again."""
 
 import argparse
 import json
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from strata_python import cli as shared
 
-from stratavoice import __version__, db, settings, studio
+from stratavoice import __version__, coverage, db, phonemes, settings, studio, writer
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -78,11 +79,62 @@ def cmd_manifest(args: argparse.Namespace) -> int:
     return 0
 
 
+def check_espeak() -> "tuple[shared.Status, str]":
+    """Optional: without espeak-ng the studio still records, but phonemes are not counted or ranked by."""
+    found = phonemes.program()
+    if found is None:
+        return "missing", "install espeak-ng (it phonemises prompts for coverage), or set `espeak` to its path"
+    return "ok", found
+
+
+def cmd_coverage(args: argparse.Namespace) -> int:
+    with db.session() as s:
+        studio.seed(s)
+        cov = coverage.coverage(s)
+    if args.json:
+        print(json.dumps(cov.model_dump(mode="json"), indent=1))
+        return 0
+    print(f"  {cov.prompts} prompt(s) recorded, {cov.waiting} generated prompt(s) waiting")
+    if not cov.phonemised:
+        print("  espeak-ng was not found, so phonemes are not counted: install it, or set `espeak` to its path")
+    for g in cov.groups:
+        of = f" of {g.inventory}" if g.inventory is not None else ""
+        least = ", ".join(f"{u.value} {u.count}" for u in g.units[:8])
+        print(f"  {g.title:16} {g.covered}{of} said; least: {least}")
+    return 0
+
+
+def cmd_write(args: argparse.Namespace) -> int:
+    with db.session() as s:
+        studio.seed(s)
+        done = writer.write(s, args.count)
+    cost = f", ${done.cost_usd:.3f}" if done.cost_usd is not None else ""
+    print(
+        f"  {done.writer} offered {done.offered}, kept {done.added}{cost}; {done.waiting} generated prompt(s) waiting"
+    )
+    return 0
+
+
+def cmd_rank(args: argparse.Namespace) -> int:
+    with db.session() as s:
+        studio.seed(s)
+        n = coverage.rank(s)
+        top = [p for p in studio.upcoming(s, args.show) if p.source == coverage.GENERATED]
+    print(f"  ranked {n} generated prompt(s)")
+    for p in top:
+        print(f"  {p.score or 0:7.3f}  {p.kind:11} {p.text[:70]}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="strata-voice")
     sub = p.add_subparsers(dest="cmd", required=True)
     shared.add_doctor(
-        sub, "strata-voice", __version__, ("fastapi", "uvicorn", "pydantic", "sqlalchemy", "strata_python")
+        sub,
+        "strata-voice",
+        __version__,
+        ("fastapi", "uvicorn", "pydantic", "sqlalchemy", "strata_python"),
+        checks=[shared.Check("espeak-ng", check_espeak, optional=True)],
     )
     pr = sub.add_parser("prompts", help="list the prompts in queue order, with how far each has got")
     pr.add_argument("--json", action="store_true")
@@ -97,6 +149,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     m = sub.add_parser("manifest", help="write the dataset manifest: one JSON record per prompt's take in use")
     m.add_argument("-o", "--out", help="file to write (default: standard output)")
     m.set_defaults(fn=cmd_manifest)
+    cv = sub.add_parser("coverage", help="what the recordings cover and lack: phonemes, pairs, stress, styles...")
+    cv.add_argument("--json", action="store_true")
+    cv.set_defaults(fn=cmd_coverage)
+    w = sub.add_parser("write", help="have the prompt writer (strata-models' `write` role) add prompts, then rank")
+    w.add_argument("--count", type=int, default=writer.DEFAULT_COUNT)
+    w.set_defaults(fn=cmd_write)
+    rk = sub.add_parser("rank", help="order the generated prompts still to record by what they would add")
+    rk.add_argument("--show", type=int, default=10, help="how many of the next prompts to print")
+    rk.set_defaults(fn=cmd_rank)
     shared.add_set(sub, settings.SETTINGS)
     shared.add_serve(sub, run_server, default_port=8370)
     shared.add_openapi(sub, create_app)

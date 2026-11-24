@@ -20,6 +20,9 @@ export type Progress = Schema<'Progress'>
 export type Take = Schema<'TakeOut'>
 export type TakePage = Schema<'Page_TakeOut_'>
 export type Folder = Schema<'Folder'>
+export type Coverage = Schema<'Coverage'>
+export type CoverageGroup = Schema<'Group'>
+export type Written = Schema<'Written'>
 /** `GET /api/system`: strata-python's SystemInfo plus this app's own numbers (src/stratavoice/system.py
  *  AppNumbers). Those are extra fields on the shared model, so the schema does not name them. */
 export type SystemStatus = Schema<'SystemInfo'> & { takes: number; seconds: number; recordings_bytes: number }
@@ -32,6 +35,7 @@ export const keys = {
   settings: ['settings'],
   studio: ['studio'],
   takes: ['takes'],
+  coverage: ['coverage'],
 } as const
 
 /** Keeps a take: the WAV itself as the body (not JSON, so no base64), with the microphone's name when the browser gave one. */

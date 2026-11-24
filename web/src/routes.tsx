@@ -6,6 +6,7 @@
 // page path with the app (src/stratavoice/server/app.py), so a reload or a shared link opens that screen,
 // and anything a person would link to (sort, tab, page) lives in the URL's search.
 import type { RouteObject } from 'react-router'
+import { CoverageScreen } from './screens/CoverageScreen'
 import { Layout } from './screens/Layout'
 import { NotFoundScreen } from './screens/NotFoundScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -19,6 +20,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <StudioScreen /> },
       { path: 'takes', element: <TakesScreen /> },
+      { path: 'coverage', element: <CoverageScreen /> },
       { path: 'system', element: <SystemScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
       { path: '*', element: <NotFoundScreen /> },

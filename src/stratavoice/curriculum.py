@@ -11,7 +11,12 @@ rather than a long script, in five groups, in the order they are asked for:
 
 The sentences are written for en-GB speech and for this app; none is taken from a published corpus. Each has a stable
 `key`, so seeding is idempotent and a later edit to the wording can be tracked against takes already made. Spontaneous
-prompts have no fixed text to compare a transcript against; scoring (step 2) treats them separately."""
+prompts have no fixed text to compare a transcript against; scoring (step 2) treats them separately.
+
+`STYLES` is the vocabulary a prompt's delivery is counted in (coverage.py) and the prompt writer chooses from: the
+W3C EmotionML "everyday" categories that suit mild, everyday speech, plus neutral, and four stances that are not
+emotions (sarcastic, sympathetic, reassuring, whispered; the spec leaves open how to encode stance, §15). `style()`
+gives each starter prompt its one."""
 
 from dataclasses import dataclass
 
@@ -26,6 +31,53 @@ class Seed:
 
 
 KINDS = ("spontaneous", "phonetic", "prosodic", "expressive", "evaluation")
+
+STYLES = (
+    "neutral",
+    "happy",
+    "amused",
+    "excited",
+    "pleased",
+    "relaxed",
+    "confident",
+    "interested",
+    "affectionate",
+    "surprised",
+    "puzzled",
+    "sad",
+    "disappointed",
+    "worried",
+    "afraid",
+    "annoyed",
+    "angry",
+    "bored",
+    "tired",
+    "sarcastic",
+    "sympathetic",
+    "reassuring",
+    "whispered",
+)
+
+#: The starter prompts whose cue is not neutral delivery (the others read plainly).
+_STYLE_OF = {
+    "pros-05": "surprised",
+    "pros-06": "pleased",
+    "pros-07": "sarcastic",
+    "pros-11": "reassuring",
+    "expr-01": "excited",
+    "expr-02": "tired",
+    "expr-03": "sympathetic",
+    "expr-04": "confident",
+    "expr-05": "puzzled",
+    "expr-06": "annoyed",
+    "expr-07": "whispered",
+    "expr-08": "excited",
+    "expr-09": "disappointed",
+    "expr-10": "amused",
+    "eval-04": "relaxed",
+    "eval-05": "pleased",
+    "eval-06": "sympathetic",
+}
 
 SPONTANEOUS = [
     Seed("spont-01", "spontaneous", "Talk for about thirty seconds about what you did last weekend."),
@@ -106,3 +158,8 @@ EVALUATION = [
 ]
 
 STARTER: list[Seed] = [*SPONTANEOUS, *PHONETIC, *PROSODIC, *EXPRESSIVE, *EVALUATION]
+
+
+def style(seed: Seed) -> str | None:
+    """A starter prompt's style: None for talk with no text (its delivery is the speaker's own), else its cue's."""
+    return None if seed.kind == "spontaneous" else _STYLE_OF.get(seed.key, "neutral")

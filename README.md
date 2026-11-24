@@ -1,6 +1,6 @@
 # strata-voice
 
-Records a person's spoken voice, and later their written one, so a model of it can be built. Step one is the recording studio: it shows one prompt at a time, records a lossless take from the browser, plays back what was kept, and keeps a dataset manifest of the takes. Later steps crop and score each take automatically and ask again for the ones that are not good enough, then generate new prompts aimed at what the recordings still lack ([docs/implementation-plan.md](docs/implementation-plan.md)).
+Records a person's spoken voice, and later their written one, so a model of it can be built. Step one is the recording studio: it shows one prompt at a time, records a lossless take from the browser, plays back what was kept, and keeps a dataset manifest of the takes. Each take is cropped and scored as it is kept, and one that is not good enough is asked for again. After the starter set, a cloud model writes new prompts aimed at what the recordings still lack (sounds, sentence types, styles), and a local ranker asks for the ones that add the most first ([docs/implementation-plan.md](docs/implementation-plan.md)).
 
 Everything runs on the speaker's own computer. The takes stay in a folder there and are sent nowhere else. Model work (transcribing, scoring, generating prompts) goes through [strata-models](https://github.com/jburnhams/strata-models), which hosts and evaluates the models; this app only orchestrates.
 
@@ -16,7 +16,12 @@ uv run strata-voice serve                 # the studio on http://127.0.0.1:8370/
 uv run strata-voice prompts               # the queue, in order
 uv run strata-voice takes                 # the takes kept, newest first
 uv run strata-voice manifest -o takes.jsonl   # one record per prompt (its newest take), for training
+uv run strata-voice coverage              # which sounds, stress patterns, sentence types and styles are said, least first
+uv run strata-voice write --count 40      # have the prompt writer (strata-models' `write` role) add prompts, then rank them
+uv run strata-voice rank                  # order the written prompts by what they would add
 ```
+
+**Install espeak-ng** (`apt install espeak-ng`, `brew install espeak-ng`, or the MSI from [its releases](https://github.com/espeak-ng/espeak-ng/releases) on Windows). It turns each prompt into British (RP) phonemes for the coverage ranker. Without it the studio still records, but sounds are not counted; `uv run strata-voice set espeak /path/to/espeak-ng` names it when it is not on the PATH, and `doctor` says whether it was found. CI installs it on every runner.
 
 `./strata-voice` and `strata-voice.cmd` wrap `uv run strata-voice`.
 

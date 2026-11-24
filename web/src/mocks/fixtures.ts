@@ -2,27 +2,28 @@
 // tests, every Storybook story and the visual suite's screenshots, so a screen looks the same in
 // each. Dates are fixed, so screenshots do not change from day to day. The prompts are a few of the
 // real starter curriculum's (src/stratavoice/curriculum.py).
-import type { Prompt, Settings, SystemStatus, Take } from '../api'
+import type { Prompt, Settings, SystemStatus, Take, Written } from '../api'
 
 export const defaultSettings: Settings = {
   recordings_dir: '/home/ada/.stratavoice/recordings',
   consented_on: '2026-11-23',
   max_take_seconds: 60,
+  espeak: '',
 }
 
-const seeds: [string, string, string, string | null, string][] = [
-  ['spont-01', 'spontaneous', 'Talk for about thirty seconds about what you did last weekend.', null, 'train'],
-  ['spont-02', 'spontaneous', 'Describe the room you are sitting in, as if to someone on the phone.', null, 'train'],
-  ['phon-01', 'phonetic', 'The thick fog over the harbour cleared just before the ferry left.', null, 'train'],
-  ['phon-02', 'phonetic', 'She measured the beige fabric twice before cutting the pleasure boat’s sail.', null, 'train'],
-  ['pros-07', 'prosodic', 'Well, that went better than expected.', 'dry, sarcastic', 'train'],
-  ['expr-01', 'expressive', 'Oh, you’re joking! That’s brilliant news.', 'delighted', 'train'],
-  ['expr-07', 'expressive', 'Shh, the baby’s finally asleep.', 'whispered', 'train'],
-  ['eval-01', 'evaluation', 'The library closes early on Saturdays during the summer.', null, 'eval'],
+const seeds: [string, string, string, string | null, string, string | null][] = [
+  ['spont-01', 'spontaneous', 'Talk for about thirty seconds about what you did last weekend.', null, 'train', null],
+  ['spont-02', 'spontaneous', 'Describe the room you are sitting in, as if to someone on the phone.', null, 'train', null],
+  ['phon-01', 'phonetic', 'The thick fog over the harbour cleared just before the ferry left.', null, 'train', 'neutral'],
+  ['phon-02', 'phonetic', 'She measured the beige fabric twice before cutting the pleasure boat’s sail.', null, 'train', 'neutral'],
+  ['pros-07', 'prosodic', 'Well, that went better than expected.', 'dry, sarcastic', 'train', 'sarcastic'],
+  ['expr-01', 'expressive', 'Oh, you’re joking! That’s brilliant news.', 'delighted', 'train', 'excited'],
+  ['expr-07', 'expressive', 'Shh, the baby’s finally asleep.', 'whispered', 'train', 'whispered'],
+  ['eval-01', 'evaluation', 'The library closes early on Saturdays during the summer.', null, 'eval', 'neutral'],
 ]
 
-/** The queue: every prompt, none recorded or skipped. */
-export const initialPrompts: Prompt[] = seeds.map(([key, kind, text, cue, partition], i) => ({
+/** The queue: every prompt, none recorded or skipped. The starter set's, in its order. */
+export const initialPrompts: Prompt[] = seeds.map(([key, kind, text, cue, partition, style], i) => ({
   id: i + 1,
   key,
   kind,
@@ -31,7 +32,13 @@ export const initialPrompts: Prompt[] = seeds.map(([key, kind, text, cue, partit
   partition,
   takes: 0,
   skipped: false,
+  style,
+  source: 'starter',
+  score: null,
 }))
+
+/** What a batch from the prompt writer comes back as (`POST /api/prompts/write`). */
+export const written: Written = { offered: 40, added: 37, writer: 'claude-sonnet-5-5-api', cost_usd: 0.031, waiting: 49 }
 
 /** How the server judges a take that went well (scoring.py): every word heard, cropped a fifth of a second in from
  *  each end, at a good level in a quiet room. */

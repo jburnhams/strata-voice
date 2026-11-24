@@ -29,6 +29,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+      # espeak-ng phonemises prompts (phonemes.py); the tests run the real program, so every runner installs it.
+      - name: Install espeak-ng
+        if: runner.os != 'Windows'
+        run: if [ "$RUNNER_OS" = macOS ]; then brew install espeak-ng; else sudo apt-get update -q && sudo apt-get install -y -q espeak-ng; fi
+      - name: Install espeak-ng (Windows, the project's MSI)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo espeak-ng/espeak-ng --pattern '*.msi' --dir "$env:RUNNER_TEMP\espeak"
+          $msi = Get-ChildItem "$env:RUNNER_TEMP\espeak\*.msi" | Sort-Object { $_.Name -notmatch 'x64' } | Select-Object -First 1
+          Start-Process msiexec.exe -Wait -ArgumentList '/i', "`"$($msi.FullName)`"", '/qn'
+          "C:\Program Files\eSpeak NG" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
       - run: uv sync --locked
       - name: Lockfile, lint, format and types (once, on the newest Python)
         if: matrix.python-version == '3.13' && matrix.os == 'ubuntu-latest'

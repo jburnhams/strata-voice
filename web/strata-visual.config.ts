@@ -53,6 +53,7 @@ export default defineVisualConfig({
           },
         },
       },
+      { name: 'coverage', path: '/coverage' },
       { name: 'system', path: '/system' },
       {
         name: 'settings',
