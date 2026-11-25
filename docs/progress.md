@@ -1,5 +1,14 @@
 # Progress log
 
+## 2026-11-25: the hands-free studio
+
+- Asked for: "an auto studio mode where it is always listening and auto captures the relevant speech and when happy moves on ... infinite scroll of prompts and process async. if unhappy with a recording then put it back in the queue".
+- Cutting takes from an open microphone is strata-react's (`useAutoRecorder`, `createSegmenter`): an energy detector against the room's measured quiet, not a neural VAD, so nothing is downloaded. A cough or a door that gets through costs one retry, since scoring checks the words.
+- The prompt a take belongs to is fixed when the speaker starts talking. By the time the take ends (a second of quiet later) the screen has moved on.
+- A retry does not jump the screen back: the prompt being read stays, and the retried one is next. Takes are uploaded one after another, so they reach the server in the order said, which "the newest take is the one in use" and the pilot's sessions both depend on.
+- Jonathan asked for "a super quick transcribe mode just to extract the relevant bit for the prompt, then can do slower processing after". The page never waits on the transcription, and turbo is well under a second a take, so he chose one pass now, measured on the pilot. The "relevant bit" is done in that pass: `wer.find` picks the run of heard words that is the prompt (the latest full reading on a tie), the crop is that run's, and the word error rate is that run's. This also changes the click-to-record studio: speech around the prompt no longer fails a take.
+
+
 ## 2026-11-24: no free-talk prompts
 
 - Asked for: "i dont want talk freely prompts". The spec's first curriculum group (about 90 s of unscripted talk, for the speaker's own rhythm) is gone: the three `spont-*` prompts are out of the starter set, and every prompt is now read from its text, so scoring checks the words of every new take. The prompt writer never wrote free-talk prompts (its kinds are phonetic, prosodic and expressive), so it needed no change.

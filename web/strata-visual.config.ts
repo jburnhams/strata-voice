@@ -40,6 +40,7 @@ export default defineVisualConfig({
           },
         },
       },
+      { name: 'hands-free', path: '/hands-free' },
       {
         name: 'takes',
         path: '/takes',

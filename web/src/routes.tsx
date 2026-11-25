@@ -7,6 +7,7 @@
 // and anything a person would link to (sort, tab, page) lives in the URL's search.
 import type { RouteObject } from 'react-router'
 import { CoverageScreen } from './screens/CoverageScreen'
+import { HandsFreeScreen } from './screens/HandsFreeScreen'
 import { Layout } from './screens/Layout'
 import { NotFoundScreen } from './screens/NotFoundScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -19,6 +20,7 @@ export const routes: RouteObject[] = [
     element: <Layout />,
     children: [
       { index: true, element: <StudioScreen /> },
+      { path: 'hands-free', element: <HandsFreeScreen /> },
       { path: 'takes', element: <TakesScreen /> },
       { path: 'coverage', element: <CoverageScreen /> },
       { path: 'system', element: <SystemScreen /> },

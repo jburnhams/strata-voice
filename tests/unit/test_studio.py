@@ -241,3 +241,17 @@ def test_a_file_that_cannot_be_removed_keeps_its_take(
     monkeypatch.undo()
     assert os.path.isfile(studio.take_file(db_session, take.id))  # still listed, so Remove can be tried again
     assert studio.remove_take(db_session, take.id).id == take.id
+
+
+def test_the_queue_is_paged_by_a_cursor_that_survives_takes_leaving_it(db_session: Session, consented: None):
+    first = studio.queue_page(db_session, limit=3)
+    assert [p.key for p in first.items] == [s.key for s in curriculum.STARTER[:3]]
+    assert first.next is not None
+    studio.add_take(db_session, first.items[0].id, sine_wav(1.0))  # the front leaves: the next page is not shifted
+    second = studio.queue_page(db_session, after=first.next, limit=3)
+    assert [p.key for p in second.items] == [s.key for s in curriculum.STARTER[3:6]]
+    rest = studio.queue_page(db_session, after=second.next, limit=200)
+    assert rest.next is None
+    assert len(first.items) + len(second.items) + len(rest.items) == len(curriculum.STARTER)
+    with pytest.raises(ValueError, match="not a place in the queue"):
+        studio.queue_page(db_session, after="soon")

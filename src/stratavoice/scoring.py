@@ -10,8 +10,11 @@ Two checks, run on the master as kept (it is never changed):
   is not given to Whisper as its `initial_prompt`: that would pull the transcript towards the prompt and hide the
   very misreadings the check is for.
 
-The word timings also give the crop: from just before the first word to just after the last (`PAD_BEFORE`,
-`PAD_AFTER`), kept as `speech_start`/`speech_end` on the take, played back by the studio and written to the manifest.
+The word timings also give the crop: from just before the first word of the prompt to just after its last
+(`PAD_BEFORE`, `PAD_AFTER`). "Of the prompt": `wer.find` picks the run of heard words that is the prompt, so a false
+start, "sorry, again" or a word to someone else before or after it is cropped out rather than failing the take (the
+hands-free studio cuts takes from an open microphone, where that happens), and the word error rate is that run's. The
+crop is kept as `speech_start`/`speech_end` on the take, played back by the studio and written to the manifest.
 A crop is a pair of numbers, not a second file: the master stays the one lossless copy, and a training tool cuts it.
 
 A take with any problem is `retry`, and the studio asks for another at once; the speaker can keep it anyway
@@ -29,7 +32,7 @@ from sqlalchemy.orm import Session
 from strata_python.clients import models as sm
 from strata_python.contracts import ApiModel
 from strata_python.wav import WavLevels, measure
-from strata_python.wer import word_errors
+from strata_python.wer import find
 
 from stratavoice import curriculum
 from stratavoice.models import Prompt, Take
@@ -93,7 +96,7 @@ def problems(t: Take, p: Prompt) -> list[Problem]:
         elif code == "no_speech":
             sentence = "No words were heard. Say the prompt after pressing Record, then press Stop."
         else:  # "words", the last code score() writes
-            missed = word_errors(p.text, t.transcript or "").missed
+            missed = find(p.text, (t.transcript or "").split()).errors.missed
             heard = f" It heard \u201c{t.transcript}\u201d." if t.transcript else ""
             sentence = (
                 f"Some words were not the prompt's: {_quote(missed)}.{heard}"
@@ -145,12 +148,15 @@ def score(db: Session, t: Take, p: Prompt, path: str) -> None:
         if not words:
             found.append("no_speech")
         else:
-            t.speech_start = round(max(0.0, words[0].start - PAD_BEFORE), 3)
-            t.speech_end = round(min(levels.seconds, words[-1].end + PAD_AFTER), 3)
+            run = words
             if p.kind != curriculum.FREE_TALK:
-                t.wer = wer = round(word_errors(p.text, transcript.text).wer, 4)
+                reading = find(p.text, [w.word for w in words])
+                run = words[reading.start : reading.end] or words
+                t.wer = wer = round(reading.errors.wer, 4)
                 if wer > MAX_WER:
                     found.append("words")
+            t.speech_start = round(max(0.0, run[0].start - PAD_BEFORE), 3)
+            t.speech_end = round(min(levels.seconds, run[-1].end + PAD_AFTER), 3)
     t.problems = " ".join(found)
     t.verdict = RETRY if found else UNCHECKED if heard is None else GOOD
     t.scored = datetime.datetime.now(datetime.UTC)

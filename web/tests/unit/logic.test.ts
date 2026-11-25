@@ -14,6 +14,7 @@ import {
 } from '../../src/mocks/fixtures'
 import { mock, studioOf, takePage } from '../../src/mocks/handlers'
 import { describeCoverage, describeWritten, unitName } from '../../src/screens/CoverageScreen'
+import { describeVisit, failed, type Said, saidWord } from '../../src/screens/HandsFreeScreen'
 import { secondsProblem } from '../../src/screens/SettingsScreen'
 import { describeProgress } from '../../src/screens/StudioScreen'
 import { describeDisk, ofSize, recordingsDisk } from '../../src/screens/SystemScreen'
@@ -168,5 +169,29 @@ describe('a batch of written prompts', () => {
     expect(describeWritten(w)).toBe(
       `The writer wrote 3; ${format.count(1, 'new prompt')} kept. ${format.count(1, 'written prompt')} now wait.`,
     )
+  })
+})
+
+describe('hands-free', () => {
+  const s = (phase: Said['phase'], take?: Partial<Said['take']>) => ({ phase, take }) as Said
+
+  it('says nothing before a take, then counts each state', () => {
+    expect(describeVisit([])).toBeUndefined()
+    expect(describeVisit([s('saving'), s('failed')])).toBe(
+      `${format.count(2, 'take')} said this visit: 0 kept, 1 being checked, 1 not kept.`,
+    )
+  })
+
+  it("words each take: checking, not kept, back in the queue, or the studio's own word", () => {
+    expect(saidWord(s('saving')).word).toBe('Checking…')
+    expect(saidWord(s('failed')).word).toBe('Not kept')
+    expect(saidWord(s('saved', { verdict: 'retry', accepted: false })).word).toBe('Back in the queue')
+    expect(saidWord(s('saved', { verdict: 'retry', accepted: true })).word).toBe('Kept anyway')
+    expect(saidWord(s('saved', { verdict: 'good', accepted: false })).word).toBe('Good take')
+  })
+
+  it('says why a write failed, with words for something that is not an error', () => {
+    expect(failed(new Error('Gone.'))).toBe('Gone.')
+    expect(failed(42)).toBe('It did not go through.')
   })
 })

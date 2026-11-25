@@ -83,6 +83,14 @@ def test_skip_list_page_remove_and_the_manifest(client: TestClient):
     ids = [
         client.post(f"/api/prompts/{p['id']}/takes", content=speech(0.5), headers=WAV).json()["id"] for p in prompts[:3]
     ]
+    queue = client.get("/api/queue", params={"limit": 2}).json()
+    assert [p["id"] for p in queue["items"]] == [p["id"] for p in prompts[3:5]]
+    assert client.get("/api/queue", params={"after": queue["next"]}).json()["items"][0]["id"] == prompts[5]["id"]
+    bad = client.get("/api/queue", params={"after": "x"})
+    assert (bad.status_code, bad.json()["detail"]) == (
+        400,
+        "“x” is not a place in the queue: give the `next` of the page before.",
+    )
     page = client.get("/api/takes/page", params={"limit": 2}).json()
     assert ([t["id"] for t in page["items"]], page["next"]) == (ids[:0:-1], str(ids[1]))
     assert client.get("/api/takes/page", params={"limit": 0}).status_code == 422

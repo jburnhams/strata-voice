@@ -9,7 +9,17 @@
 // mock holds, as src/stratavoice/studio.py works it out from the database, so keeping or removing a take
 // moves the queue on here too.
 import { delay, HttpResponse, http } from 'msw'
-import { type Coverage, type Progress, type Prompt, type Settings, type Studio, type Take, type TakePage, usable } from '../api'
+import {
+  type Coverage,
+  type Progress,
+  type Prompt,
+  type PromptPage,
+  type Settings,
+  type Studio,
+  type Take,
+  type TakePage,
+  usable,
+} from '../api'
 import { coverageSample } from './coverage-sample'
 import {
   defaultSettings,
@@ -54,6 +64,7 @@ export const paths = {
   prompts: '/api/prompts',
   takesOf: '/api/prompts/:id/takes',
   skip: '/api/prompts/:id/skip',
+  queue: '/api/queue',
   takesPage: '/api/takes/page',
   take: '/api/takes/:id',
   accept: '/api/takes/:id/accept',
@@ -77,6 +88,20 @@ export function studioOf(state = mock): Studio {
   }
   const queue = state.prompts.filter(p => !p.skipped && !recorded.has(p.id)).slice(0, 10)
   return { consented: state.settings.consented_on !== '', queue, progress, max_take_seconds: state.settings.max_take_seconds }
+}
+
+/** Serves `GET /api/queue?after=<position.id>&limit=<n>` as studio.queue_page does: the prompts still to record, in
+ *  order, a page at a time. The mock's list order is the position. */
+export function queuePage(url: string, state = mock): PromptPage {
+  const params = new URL(url).searchParams
+  const after = params.get('after')
+  const limit = Number(params.get('limit') ?? 20)
+  const recorded = new Set(state.takes.filter(usable).map(t => t.prompt_id))
+  const placed = state.prompts.map((p, i) => ({ p, i })).filter(({ p }) => !p.skipped && !recorded.has(p.id))
+  const rest = after === null ? placed : placed.filter(({ i }) => i > Number(after.split('.')[0]))
+  const page = rest.slice(0, limit)
+  const last = page[page.length - 1]
+  return { items: page.map(({ p }) => p), next: rest.length > limit && last ? `${last.i}.${last.p.id}` : null, total: null }
 }
 
 /** Serves `GET /api/takes/page?after=<id>&limit=<n>` from a list, as studio.takes_page does: a Page with the server's own `next` cursor. */
@@ -139,6 +164,7 @@ export const handlers = [
     p.skipped = true
     return HttpResponse.json(withTakes(p))
   }),
+  http.get(at(paths.queue), ({ request }) => HttpResponse.json(queuePage(request.url))),
   http.get(at(paths.takesPage), ({ request }) => HttpResponse.json(takePage(request.url, mock.takes))),
   http.get(at(paths.takeAudio), () => new HttpResponse(silentWav(), { headers: { 'Content-Type': 'audio/wav' } })),
   http.post(at(paths.accept), ({ params }) => accept(Number(params.id), true)),
@@ -191,6 +217,9 @@ export const keepUnchecked = http.post(at(paths.takesOf), ({ request, params }) 
 export const acceptFails = http.post(at(paths.accept), down)
 export const skipFails = http.post(at(paths.skip), down)
 export const consentFails = http.put(at(paths.settings), down)
+
+export const queueLoading = http.get(at(paths.queue), () => delay('infinite'))
+export const queueError = http.get(at(paths.queue), down)
 
 export const takesLoading = http.get(at(paths.takesPage), () => delay('infinite'))
 export const takesEmpty = http.get(at(paths.takesPage), () => HttpResponse.json({ items: [], next: null, total: null }))
