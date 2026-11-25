@@ -24,7 +24,7 @@ class Base(MappedAsDataclass, DeclarativeBase):
 
 
 class Prompt(Base):
-    """Something to say. `kind` is the curriculum's group (spontaneous, phonetic, prosodic, expressive, evaluation),
+    """Something to say. `kind` is the curriculum's group (phonetic, prosodic, expressive, evaluation),
     `cue` the written delivery label shown with it ("dry, amused"), `partition` where its takes go in a dataset
     (`train`, or `eval` for the held-out set a model never trains on). `source` says who wrote it (`starter` for the
     built-in curriculum, `generated` for the prompt writer's), and `position` orders the queue. A skipped prompt keeps its row,
@@ -43,7 +43,7 @@ class Prompt(Base):
     position: Mapped[int] = mapped_column(Integer)
     created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
     skipped: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    # Step 3 (coverage.py, writer.py). `style` is the delivery from curriculum.STYLES (null for spontaneous talk),
+    # Step 3 (coverage.py, writer.py). `style` is the delivery from curriculum.STYLES (null on a row from before step 3),
     # `phonemes` espeak's en-GB IPA of the text (phonemes.py; null when espeak was not there), `writer` the model that
     # wrote a generated prompt (`source` is "generated"), and `score` its value per second when it was last ranked.
     style: Mapped[str | None] = mapped_column(String(20), default=None)
@@ -84,7 +84,7 @@ class Take(Base):
     noise_db: Mapped[float | None] = mapped_column(Float, default=None)
     speech_db: Mapped[float | None] = mapped_column(Float, default=None)
     clipped: Mapped[int | None] = mapped_column(Integer, default=None)
-    # Text, not a bounded String: a spontaneous take's transcript is its training text, and a 300 s take can run long.
+    # Text, not a bounded String: a 300 s take can run long.
     transcript: Mapped[str | None] = mapped_column(Text, default=None)
     asr_model: Mapped[str | None] = mapped_column(String(100), default=None)
     wer: Mapped[float | None] = mapped_column(Float, default=None)

@@ -75,7 +75,6 @@ export function today(now = new Date()): string {
 
 /** The curriculum's groups, in the words the studio shows above a prompt (src/stratavoice/curriculum.py). */
 const kindNames: Record<string, string> = {
-  spontaneous: 'Talk freely',
   phonetic: 'Read aloud',
   prosodic: 'Read with this delivery',
   expressive: 'Read with feeling',

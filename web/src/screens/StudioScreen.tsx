@@ -385,14 +385,14 @@ function TakeReview({ review }: { review: Review }) {
         showFull={!!window}
       />
       <TakeLevel peak={review.recording.peak} lead={`Kept ${format.runningTime(take.seconds)}`} />
-      <TakeVerdict take={take} prompt={prompt} />
+      <TakeVerdict take={take} />
     </div>
   )
 }
 
 /** What the server made of the take just kept: its words heard, or each problem and what to do about it. A take
  *  kept anyway is never shown here: keeping it moves the studio on. */
-export function TakeVerdict({ take, prompt }: { take: Take; prompt: Prompt }) {
+export function TakeVerdict({ take }: { take: Take }) {
   if (take.verdict === 'retry') {
     return (
       <Alert tone="warning" title="Record it again" announce>
@@ -404,9 +404,7 @@ export function TakeVerdict({ take, prompt }: { take: Take; prompt: Prompt }) {
   const said =
     take.verdict !== 'good'
       ? 'The words were not checked: the speech recogniser was not running. They are checked later (strata-voice score).'
-      : prompt.kind === 'spontaneous'
-        ? `Heard “${take.transcript}”.`
-        : 'Every word was heard. Played from just before the first word to just after the last.'
+      : 'Every word was heard. Played from just before the first word to just after the last.'
   return (
     <p className="flex items-baseline gap-2 type-body-sm">
       <Status tone={tone}>{word}</Status>

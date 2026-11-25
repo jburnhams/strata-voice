@@ -12,10 +12,10 @@ export const defaultSettings: Settings = {
 }
 
 const seeds: [string, string, string, string | null, string, string | null][] = [
-  ['spont-01', 'spontaneous', 'Talk for about thirty seconds about what you did last weekend.', null, 'train', null],
-  ['spont-02', 'spontaneous', 'Describe the room you are sitting in, as if to someone on the phone.', null, 'train', null],
   ['phon-01', 'phonetic', 'The thick fog over the harbour cleared just before the ferry left.', null, 'train', 'neutral'],
   ['phon-02', 'phonetic', 'She measured the beige fabric twice before cutting the pleasure boat’s sail.', null, 'train', 'neutral'],
+  ['phon-03', 'phonetic', 'Judge the choir on their joy, not on the strength of their voices.', null, 'train', 'neutral'],
+  ['phon-04', 'phonetic', 'A quiet young queen wrapped twelve woollen scarves in the wardrobe.', null, 'train', 'neutral'],
   ['pros-07', 'prosodic', 'Well, that went better than expected.', 'dry, sarcastic', 'train', 'sarcastic'],
   ['expr-01', 'expressive', 'Oh, you’re joking! That’s brilliant news.', 'delighted', 'train', 'excited'],
   ['expr-07', 'expressive', 'Shh, the baby’s finally asleep.', 'whispered', 'train', 'whispered'],
@@ -60,14 +60,13 @@ export function goodScore(
   | 'speech_start'
   | 'speech_end'
 > {
-  const read = p.kind !== 'spontaneous'
   return {
     verdict: 'good',
     problems: [],
     accepted: false,
-    transcript: read ? p.text : 'Last weekend I walked along the canal and ended up at a market I had never seen before.',
+    transcript: p.text,
     asr_model: 'whisper-large-v3-turbo',
-    wer: read ? 0 : null,
+    wer: 0,
     peak_db: -8.4,
     noise_db: -63.1,
     speech_db: -19.6,

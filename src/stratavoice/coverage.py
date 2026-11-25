@@ -1,14 +1,14 @@
 """What the recordings cover, and which prompt to ask for next (step 3; spec §6 and §7.1).
 
-Coverage is counted over the text of every prompt with a usable take (a spontaneous take counts its transcript), as
-units in six groups:
+Coverage is counted over the text of every prompt with a usable take (an old free-talk take counts its transcript),
+as units in six groups:
 
   phoneme        RP's 43 phonemes (phonemes.INVENTORY), each time one is said
   pair           two phonemes in a row, across word boundaries too (connected speech): the spec's phoneme bigrams
   stress         the stress pattern of each word of two or more syllables ("010", "banana")
   length         short (up to 6 words), medium (to 14) or long
   sentence       statement, yes/no question, wh-question, exclamation, list, several sentences
-  style          the prompt's delivery (curriculum.STYLES); spontaneous talk has none
+  style          the prompt's delivery (curriculum.STYLES)
 
 `rank` orders the generated prompts still to record by expected value per second of the speaker's time, the spec's
 `utility` with the terms this step can measure (teacher disagreement and student error come with a model): each unit
@@ -210,24 +210,21 @@ def value(have: Counter[Unit], t: Text, unit_counts: Counter[Unit], seen: Sequen
 
 
 def _text(p: Prompt, transcript: str | None = None) -> Text:
-    if transcript is not None:  # spontaneous talk: what was said is its text
+    if transcript is not None:  # old free talk: what was said is its text
         return Text(transcript, phonemes.ipa_or_none(transcript), None)
     return Text(p.text, p.phonemes, p.style, p.cue)
 
 
 def recorded(db: Session) -> list[Text]:
-    """The text of every prompt with a usable take (its newest, for a spontaneous one's transcript)."""
+    """The text of every prompt with a usable take (its newest, for an old free-talk one's transcript)."""
     newest = select(Take.prompt_id, Take.transcript).where(scoring.usable()).order_by(Take.id)
     transcripts: dict[int, str | None] = {pid: tr for pid, tr in db.execute(newest)}  # noqa: C416 - a Row is not a pair to dict()
-    if not transcripts:
-        return []
     out: list[Text] = []
     for p in db.scalars(select(Prompt).where(Prompt.id.in_(transcripts)).order_by(Prompt.position)):
-        if p.kind == "spontaneous":
-            if transcripts[p.id]:
-                out.append(_text(p, transcripts[p.id]))
-        else:
+        if p.kind != curriculum.FREE_TALK:
             out.append(_text(p))
+        elif transcripts[p.id]:
+            out.append(_text(p, transcripts[p.id]))
     return out
 
 

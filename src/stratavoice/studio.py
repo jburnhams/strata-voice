@@ -113,7 +113,20 @@ class Studio(ApiModel):
 
 
 def seed(db: Session) -> int:
-    """Add the starter prompts that are not there yet (by key), after the ones that are. Returns how many were added."""
+    """Add the starter prompts that are not there yet (by key), after the ones that are, and drop the starter prompts
+    the curriculum no longer has (the free-talk ones, 2026-11-24). One that was recorded stays with its takes (a take is
+    the speaker's) but is skipped, so the studio never offers it again. Returns how many were added."""
+    keys = {s.key for s in curriculum.STARTER}
+    recorded = set(db.scalars(select(Take.prompt_id)))
+    gone = list(db.scalars(select(Prompt).where(Prompt.source == "starter", Prompt.key.not_in(keys))))
+    retired = False
+    for p in gone:
+        if p.id not in recorded:
+            db.delete(p)
+            retired = True
+        elif p.skipped is None:  # kept for its takes, never offered again (even after a take judged `retry`)
+            p.skipped = _now()
+            retired = True
     have = set(db.scalars(select(Prompt.key)))
     position = db.scalar(select(func.max(Prompt.position)).where(Prompt.source == "starter")) or 0
     added = 0
@@ -136,7 +149,7 @@ def seed(db: Session) -> int:
                 phonemes=phonemes.ipa_or_none(s.text),
             )
         )
-    if added:
+    if added or retired:
         db.commit()
     _fill(db)
     return added
@@ -145,7 +158,7 @@ def seed(db: Session) -> int:
 def _fill(db: Session) -> None:
     """Give prompts kept before step 3 (or while espeak was missing) their style and phonemes, once each can be had."""
     styles = {s.key: curriculum.style(s) for s in curriculum.STARTER}
-    q = select(Prompt).where(Prompt.style.is_(None), Prompt.kind != "spontaneous", Prompt.key.in_(styles))
+    q = select(Prompt).where(Prompt.style.is_(None), Prompt.key.in_(styles))
     changed = False
     for p in db.scalars(q):
         p.style, changed = styles[p.key], True
@@ -351,8 +364,7 @@ def accept_take(db: Session, take_id: int, accepted: bool = True) -> TakeOut:
 
 def unscored(db: Session) -> list[int]:
     """The takes whose words are still to hear, oldest first: never scored, or scored while the models service could
-    not answer. That is `unchecked`, and also a `retry` for its levels alone, which still needs its transcript and crop
-    (the training text of a spontaneous take kept anyway)."""
+    not answer. That is `unchecked`, and also a `retry` for its levels alone, which still needs its transcript and crop."""
     q = select(Take.id).where(Take.asr_model.is_(None)).order_by(Take.id)
     return list(db.scalars(q))
 
@@ -376,7 +388,7 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
     """The dataset as spec §5's JSON records, one per prompt's take in use (its newest usable one), in queue order: a
     prompt whose takes were all judged `retry` is left out. `audio_uri` is relative to the recordings folder, or
     absolute for a take written to an earlier one. `speech` is the crop in seconds into the file and `quality` the
-    verdict; both are null for a take not scored yet. A spontaneous prompt's text is its transcript."""
+    verdict; both are null for a take not scored yet. An old free-talk take's text is its transcript."""
     newest = select(func.max(Take.id)).where(_usable()).group_by(Take.prompt_id)
     q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).where(Take.id.in_(newest))
     for t, p in db.execute(q.order_by(Prompt.position)):
@@ -385,10 +397,10 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
             "source": "human",
             "audio_uri": t.path if t.root in ("", settings.recordings_dir()) else _file(t),
             "sha256": t.sha256,
-            "text": t.transcript if p.kind == "spontaneous" else p.text,
+            "text": t.transcript if p.kind == curriculum.FREE_TALK else p.text,
             "prompt": {"key": p.key, "text": p.text, "kind": p.kind, "source": p.source, "writer": p.writer},
             "locale": LOCALE,
-            "phonemes": p.phonemes if p.kind != "spontaneous" else None,
+            "phonemes": None if p.kind == curriculum.FREE_TALK else p.phonemes,
             "requested_style": None
             if p.style is None
             else {"vocabulary": STYLE_VOCABULARY, "category": p.style, "label": p.cue},

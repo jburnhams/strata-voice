@@ -15,8 +15,8 @@ def consented() -> None:
 
 
 def _read(db: Session) -> studio.PromptOut:
-    """The first prompt the speaker reads word for word (the starter set opens with spontaneous ones)."""
-    return next(p for p in studio.prompts(db) if p.kind != "spontaneous")
+    """The first prompt in the queue."""
+    return studio.prompts(db)[0]
 
 
 def test_a_take_said_as_written_is_good_and_cropped(db_session: Session, consented: None, models: FakeModels):
@@ -81,18 +81,6 @@ def test_more_said_than_the_prompt_and_nothing_said(db_session: Session, consent
     assert (silent.verdict, [p.code for p in silent.problems]) == ("retry", ["no_speech"])
     assert (silent.speech_start, silent.transcript) == (None, "")
     assert silent.problems[0].sentence == "No words were heard. Say the prompt after pressing Record, then press Stop."
-
-
-def test_a_spontaneous_take_has_no_text_to_match(db_session: Session, consented: None, models: FakeModels):
-    models.down = False
-    spont = studio.prompts(db_session)[0]
-    assert spont.kind == "spontaneous"
-    long = " ".join(["Well, my morning started with a very long walk"] * 60)  # 2,880 characters: kept whole
-    models.results["transcribe"] = heard(long)
-    t = studio.score_take(db_session, studio.add_take(db_session, spont.id, speech()).id)
-    assert (t.verdict, t.wer) == ("good", None)
-    (record,) = studio.manifest(db_session)
-    assert record["text"] == long  # the transcript is its text
 
 
 @pytest.mark.parametrize(

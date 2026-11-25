@@ -5,8 +5,8 @@ Two checks, run on the master as kept (it is never changed):
 
 - **Levels**, here and at once (`strata_python.wav.measure`): it clipped, it is too quiet, or the room is noisy.
 - **Words**, through strata-models' `transcribe` role (Whisper with word timings): nothing was said, or the words were
-  not the prompt's (word error rate, `strata_python.wer`). A spontaneous prompt ("talk about...") has no text to
-  match, so only "nothing was said" applies, and its transcript becomes the take's text in the manifest. The prompt
+  not the prompt's (word error rate, `strata_python.wer`). A take of an old free-talk prompt (`curriculum.FREE_TALK`)
+  has no text to match, so only "nothing was said" applies, and its transcript is its text in the manifest. The prompt
   is not given to Whisper as its `initial_prompt`: that would pull the transcript towards the prompt and hide the
   very misreadings the check is for.
 
@@ -31,6 +31,7 @@ from strata_python.contracts import ApiModel
 from strata_python.wav import WavLevels, measure
 from strata_python.wer import word_errors
 
+from stratavoice import curriculum
 from stratavoice.models import Prompt, Take
 
 log = logging.getLogger(__name__)
@@ -146,7 +147,7 @@ def score(db: Session, t: Take, p: Prompt, path: str) -> None:
         else:
             t.speech_start = round(max(0.0, words[0].start - PAD_BEFORE), 3)
             t.speech_end = round(min(levels.seconds, words[-1].end + PAD_AFTER), 3)
-            if p.kind != "spontaneous":
+            if p.kind != curriculum.FREE_TALK:
                 t.wer = wer = round(word_errors(p.text, transcript.text).wer, 4)
                 if wer > MAX_WER:
                     found.append("words")

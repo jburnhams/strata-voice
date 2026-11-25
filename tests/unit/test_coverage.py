@@ -60,12 +60,11 @@ def test_nothing_recorded_covers_nothing_and_lists_the_whole_inventory(db_sessio
 
 def test_recorded_takes_are_what_counts(db_session: Session, consented: None, models: FakeModels):
     listed = studio.prompts(db_session)
-    spont, phon = listed[0], next(p for p in listed if p.key == "phon-01")
+    phon, second = (next(p for p in listed if p.key == k) for k in ("phon-01", "phon-02"))
     studio.add_take(db_session, phon.id, speech())  # not judged yet: counts, as the queue counts it
-    studio.add_take(db_session, listed[1].id, speech())  # spontaneous, not heard yet: no words to count
     models.down = False
-    models.results["transcribe"] = heard("Well I went for a long walk on Saturday")
-    studio.score_take(db_session, studio.add_take(db_session, spont.id, speech()).id)
+    models.results["transcribe"] = heard(second.text)
+    studio.score_take(db_session, studio.add_take(db_session, second.id, speech()).id)
     models.results["transcribe"] = heard("Mumble")
     eval_take = studio.add_take(db_session, next(p for p in listed if p.key == "eval-01").id, speech())
     assert studio.score_take(db_session, eval_take.id).verdict == "retry"  # misread: not counted
@@ -75,8 +74,8 @@ def test_recorded_takes_are_what_counts(db_session: Session, consented: None, mo
     assert cov.prompts == 2
     said = {u.value: u.count for u in groups["phoneme"].units}
     assert said["θ"] == 1  # "thick" in phon-01
-    assert said["w"] >= 2  # "Well", "went", "walk" from the spontaneous transcript
-    assert {u.value: u.count for u in groups["style"].units}["neutral"] == 1  # spontaneous talk has no style
+    assert said["ʒ"] >= 2  # "measured", "beige", "pleasure" in phon-02
+    assert {u.value: u.count for u in groups["style"].units}["neutral"] == 2
     assert {u.value: u.count for u in groups["length"].units} == {"short": 0, "medium": 2, "long": 0}
     assert groups["pair"].covered > len(groups["pair"].units) == coverage.OPEN_LIMIT  # an open set lists its least said
 
@@ -120,8 +119,6 @@ def test_seeding_fills_style_and_phonemes_kept_before(db_session: Session):
     db_session.commit()
     studio.seed(db_session)
     assert (row.style, row.phonemes) == ("whispered", phonemes.ipa(row.text))
-    spont = db_session.scalars(select(Prompt).where(Prompt.key == "spont-01")).one()
-    assert spont.style is None  # the speaker's own manner
 
 
 def test_without_espeak_coverage_still_counts_the_rest(db_session: Session, consented: None):

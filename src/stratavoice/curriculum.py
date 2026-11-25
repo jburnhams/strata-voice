@@ -1,17 +1,18 @@
 """The starter curriculum: the prompts a new voice is recorded from before the prompt planner has anything to go on.
 
 Shaped by the spoken-voice spec (§6, "Initial recording curriculum"): a balanced pilot of about eight to ten minutes
-rather than a long script, in five groups, in the order they are asked for:
+rather than a long script, in four groups, in the order they are asked for:
 
-  spontaneous   ~90 s of unscripted talk on familiar topics: the speaker's own rhythm before any reading voice
   phonetic      ~2 min of short sentences that between them cover English sounds, clusters and stress patterns
   prosodic      ~2 min of contrasts: the same words with the emphasis moved, statement against question
   expressive    ~2 min of everyday, mild expression with a written cue, never a caricature
   evaluation    ~1-2 min held out (`partition = "eval"`): never trained on, kept to measure a model against
 
 The sentences are written for en-GB speech and for this app; none is taken from a published corpus. Each has a stable
-`key`, so seeding is idempotent and a later edit to the wording can be tracked against takes already made. Spontaneous
-prompts have no fixed text to compare a transcript against; scoring (step 2) treats them separately.
+`key`, so seeding is idempotent and a later edit to the wording can be tracked against takes already made.
+
+The spec's fifth group, about 90 s of unscripted talk ("talk about your weekend"), is left out: Jonathan does not want
+free-talk prompts (2026-11-24), so every prompt is read from its text.
 
 `STYLES` is the vocabulary a prompt's delivery is counted in (coverage.py) and the prompt writer chooses from: the
 W3C EmotionML "everyday" categories that suit mild, everyday speech, plus neutral, and four stances that are not
@@ -30,7 +31,10 @@ class Seed:
     partition: str = "train"
 
 
-KINDS = ("spontaneous", "phonetic", "prosodic", "expressive", "evaluation")
+KINDS = ("phonetic", "prosodic", "expressive", "evaluation")
+#: The kind of the free-talk prompts a database seeded before 2026-11-24 may hold. None is offered any more, but a take
+#: of one keeps its own handling: no text to match, and its transcript is its training text.
+FREE_TALK = "spontaneous"
 
 STYLES = (
     "neutral",
@@ -78,12 +82,6 @@ _STYLE_OF = {
     "eval-05": "pleased",
     "eval-06": "sympathetic",
 }
-
-SPONTANEOUS = [
-    Seed("spont-01", "spontaneous", "Talk for about thirty seconds about what you did last weekend."),
-    Seed("spont-02", "spontaneous", "Describe the room you are sitting in, as if to someone on the phone."),
-    Seed("spont-03", "spontaneous", "Explain how to make your favourite cup of tea or coffee, step by step."),
-]
 
 PHONETIC = [
     Seed("phon-01", "phonetic", "The thick fog over the harbour cleared just before the ferry left."),
@@ -157,9 +155,9 @@ EVALUATION = [
     Seed("eval-06", "evaluation", "Don't forget your umbrella; it's meant to pour later.", "caring", "eval"),
 ]
 
-STARTER: list[Seed] = [*SPONTANEOUS, *PHONETIC, *PROSODIC, *EXPRESSIVE, *EVALUATION]
+STARTER: list[Seed] = [*PHONETIC, *PROSODIC, *EXPRESSIVE, *EVALUATION]
 
 
-def style(seed: Seed) -> str | None:
-    """A starter prompt's style: None for talk with no text (its delivery is the speaker's own), else its cue's."""
-    return None if seed.kind == "spontaneous" else _STYLE_OF.get(seed.key, "neutral")
+def style(seed: Seed) -> str:
+    """A starter prompt's style: its cue's, or neutral."""
+    return _STYLE_OF.get(seed.key, "neutral")

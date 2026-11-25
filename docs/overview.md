@@ -13,7 +13,7 @@ Constraints: local first. The takes never leave the speaker's computer. Cloud mo
   - `server/app.py`: the studio's typed `/api/*` routes (studio state, prompts, raw `audio/wav` take upload, skip and unskip, a cursor-paged takes list, take audio, removal, the JSONL manifest) and the built web app at every other path.
   - `settings.py`: `recordings_dir`, `consented_on` (the date the speaker agreed; blank withdraws), `max_take_seconds`, `espeak` (the program, when not on the PATH).
   - `models.py`, `migrations/`, `strata-db.toml`, `db.py`: prompts (key, text, kind, cue, partition, source, position, skipped; style, phonemes, writer, rank score) and takes (file path, rate, width, frames, size, sha256, device, and the verdict: levels, transcript, word error rate, crop, kept anyway).
-  - `curriculum.py`: the en-GB starter set (spontaneous, phonetic, prosodic and expressive prompts, plus a held-out evaluation partition).
+  - `curriculum.py`: the en-GB starter set (phonetic, prosodic and expressive prompts, plus a held-out evaluation partition; no free-talk prompts, by Jonathan's choice).
   - `studio.py`: the queue (the first prompt with no usable take and not skipped), keeping a take (consent, then `read_wav`, then an atomic write named by the row's id), judging it, keeping one anyway, paging and removing takes, and the manifest.
   - `phonemes.py`: British (RP) phonemes of a text from espeak-ng (`en-gb-x-rp`), kept on the prompt, read back as words with stress patterns.
   - `coverage.py`: what the recordings cover (phonemes, phoneme pairs, stress patterns, length, sentence type, style) and the ranker that orders written prompts by new coverage per second, every 5 usable takes.

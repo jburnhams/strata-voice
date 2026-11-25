@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from strata_python.contracts import ApiModel
 
 from stratavoice import scoring
-from stratavoice.models import Prompt, Take
+from stratavoice.models import Take
 
 #: Longer than this between two takes is a break: the next take starts a new session.
 SESSION_GAP = datetime.timedelta(minutes=30)
@@ -45,7 +45,7 @@ class Check(ApiModel):
     unit: str
     fails_when: str  # "below" or "above" the limit
     margin: float  # a take within this of the limit, on the passing side, is a near miss
-    measured: int  # takes with a value (scored, and for `words` read rather than spontaneous)
+    measured: int  # takes with a value (scored, and for `words` heard)
     spread: Spread | None
     failed: int
     near: int
@@ -130,7 +130,6 @@ def _check(
 def report(db: Session, since: datetime.date | None = None) -> Pilot:
     """The pilot report over the newest session (or from `since`)."""
     takes = session(db, since)
-    kinds = {p.id: p.kind for p in db.scalars(select(Prompt).where(Prompt.id.in_({t.prompt_id for t in takes})))}
     scored = [t for t in takes if t.verdict is not None]
     verdicts: dict[str, int] = dict.fromkeys((scoring.GOOD, scoring.RETRY, scoring.UNCHECKED, "unscored"), 0)
     for t in takes:
@@ -148,7 +147,7 @@ def report(db: Session, since: datetime.date | None = None) -> Pilot:
     ended = _utc(takes[-1].created) if takes else None
     minutes = (ended - started).total_seconds() / 60 if started and ended else 0.0
     levels = [t for t in scored if t.peak_db is not None]
-    words = [t for t in scored if t.wer is not None and kinds.get(t.prompt_id) != "spontaneous"]
+    words = [t for t in scored if t.wer is not None]
     return Pilot(
         started=started,
         ended=ended,
