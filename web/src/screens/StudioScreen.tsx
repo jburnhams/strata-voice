@@ -106,7 +106,7 @@ function StudioSkeleton() {
 }
 
 /** Asked once: what is kept, where, and how to take it back. Recording starts only after it. */
-function Consent() {
+export function Consent() {
   const queryClient = useQueryClient()
   const agree = useAsyncAction(async () => {
     await api.put('/api/settings', { json: { consented_on: today() } })
@@ -155,8 +155,7 @@ function Booth({ studio }: { studio: Studio }) {
       message: `Skipped “${p.text}”.`,
       failure: `“${p.text}” is back: skipping it did not go through.`,
       commit: async () => {
-        // No body: the generated type asks for `json` on every POST, and `undefined` sends none.
-        await api.post('/api/prompts/{prompt_id}/skip', { path: { prompt_id: p.id }, json: undefined })
+        await api.post('/api/prompts/{prompt_id}/skip', { path: { prompt_id: p.id } })
         await queryClient.invalidateQueries({ queryKey: keys.studio })
         await queryClient.invalidateQueries({ queryKey: keys.coverage })
       },
@@ -246,7 +245,7 @@ function PromptCard({
   }
 
   const keepAnyway = useAsyncAction(async (take: Take) => {
-    await api.post('/api/takes/{take_id}/accept', { path: { take_id: take.id }, json: undefined })
+    await api.post('/api/takes/{take_id}/accept', { path: { take_id: take.id } })
     await queryClient.invalidateQueries({ queryKey: keys.studio })
     await queryClient.invalidateQueries({ queryKey: keys.coverage })
     await queryClient.invalidateQueries({ queryKey: keys.takes })

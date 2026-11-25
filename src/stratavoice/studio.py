@@ -19,7 +19,7 @@ import os
 from collections.abc import Iterator
 from typing import Any
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import Session
 from strata_python.contracts import ApiModel, Page
 from strata_python.files import inside, write_bytes_atomic
@@ -209,12 +209,37 @@ def prompts(db: Session) -> list[PromptOut]:
     return [_prompt_out(p, counts.get(p.id, 0)) for p in db.scalars(select(Prompt).order_by(Prompt.position))]
 
 
-def upcoming(db: Session, limit: int = 10) -> list[PromptOut]:
-    """The next prompts to record, in queue order: no usable take yet and not skipped. More than one, so the studio
-    can show the one after while a skip is still inside its undo window."""
+def _queue() -> Select[Prompt]:
+    """Prompts still to record, in queue order: no usable take yet and not skipped. `id` breaks a tie in `position`
+    (a written prompt waits at `coverage.GENERATED_BASE` until it is ranked), so the order is total and a cursor holds."""
     recorded = select(Take.prompt_id).where(_usable())
-    q = select(Prompt).where(Prompt.skipped.is_(None), Prompt.id.not_in(recorded)).order_by(Prompt.position)
-    return [_prompt_out(p, 0) for p in db.scalars(q.limit(limit))]
+    return (
+        select(Prompt).where(Prompt.skipped.is_(None), Prompt.id.not_in(recorded)).order_by(Prompt.position, Prompt.id)
+    )
+
+
+def upcoming(db: Session, limit: int = 10) -> list[PromptOut]:
+    """The next prompts to record, in queue order. More than one, so the studio can show the one after while a skip is
+    still inside its undo window."""
+    return [_prompt_out(p, 0) for p in db.scalars(_queue().limit(limit))]
+
+
+def queue_page(db: Session, after: str | None = None, limit: int = 20) -> Page[PromptOut]:
+    """One page of the queue, for the hands-free studio's list: the prompts after the one whose cursor is `after`
+    (`<position>.<id>`, the `next` of the page before). A cursor and not an offset, because the queue shrinks as takes
+    are kept: an offset would skip a prompt each time one left the front."""
+    seed(db)
+    q = _queue()
+    if after is not None:
+        try:
+            position, prompt_id = (int(n) for n in after.split(".", 1))
+        except ValueError:
+            raise ValueError(f"“{after}” is not a place in the queue: give the `next` of the page before.") from None
+        q = q.where((Prompt.position > position) | ((Prompt.position == position) & (Prompt.id > prompt_id)))
+    rows = list(db.scalars(q.limit(limit + 1)))
+    items = [_prompt_out(p, 0) for p in rows[:limit]]
+    last = rows[limit - 1] if len(rows) > limit else None
+    return Page[PromptOut](items=items, next=f"{last.position}.{last.id}" if last else None)
 
 
 def next_prompt(db: Session) -> PromptOut | None:

@@ -19,6 +19,7 @@ export type Prompt = Schema<'PromptOut'>
 export type Progress = Schema<'Progress'>
 export type Take = Schema<'TakeOut'>
 export type TakePage = Schema<'Page_TakeOut_'>
+export type PromptPage = Schema<'Page_PromptOut_'>
 export type Folder = Schema<'Folder'>
 export type Coverage = Schema<'Coverage'>
 export type CoverageGroup = Schema<'Group'>
@@ -34,6 +35,8 @@ export const keys = {
   system: ['system'],
   settings: ['settings'],
   studio: ['studio'],
+  // Under `studio`, so every write that invalidates the studio (a take kept or removed, a skip) refreshes the queue too.
+  queue: ['studio', 'queue'],
   takes: ['takes'],
   coverage: ['coverage'],
 } as const

@@ -69,10 +69,23 @@ def test_a_misread_take_is_asked_for_again_unless_kept_anyway(db_session: Sessio
     assert prompt.id in [p.id for p in studio.upcoming(db_session)]
 
 
-def test_more_said_than_the_prompt_and_nothing_said(db_session: Session, consented: None, models: FakeModels):
+def test_chatter_around_the_prompt_is_cropped_out_and_more_said_inside_it_or_nothing_said(
+    db_session: Session, consented: None, models: FakeModels
+):
     models.down = False
     prompt = _read(db_session)
-    models.results["transcribe"] = heard(f"{prompt.text} and then a great deal more that nobody asked for at all")
+    # Chatter before and after the reading (a hands-free take): cropped out, not a fault.
+    words = prompt.text.split()
+    models.results["transcribe"] = heard(f"sorry {words[0]} sorry again {prompt.text} right next one", 0.2, 2.2)
+    around = studio.score_take(db_session, studio.add_take(db_session, prompt.id, speech(2.5)).id)
+    step = 2.0 / (len(words) + 7)
+    assert (around.verdict, around.wer) == ("good", 0.0)
+    assert around.speech_start == pytest.approx(0.2 + 4 * step - scoring.PAD_BEFORE, abs=0.002)
+    assert around.speech_end == pytest.approx(0.2 + (4 + len(words)) * step + scoring.PAD_AFTER, abs=0.002)
+
+    # Words inside the reading that are not the prompt's still count.
+    inserted = " ".join([*words[:4], "um", "er", *words[4:]])
+    models.results["transcribe"] = heard(inserted)
     (extra,) = studio.score_take(db_session, studio.add_take(db_session, prompt.id, speech()).id).problems
     assert extra.sentence.startswith("More was said than the prompt. It heard")
 

@@ -106,6 +106,12 @@ def create_app() -> FastAPI:
     def delete_skip(prompt_id: int, s: DbSession) -> studio.PromptOut:
         return studio.skip(s, prompt_id, skipped=False)
 
+    @app.get("/api/queue")
+    def get_queue(
+        s: DbSession, after: str | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 20
+    ) -> Page[studio.PromptOut]:
+        return studio.queue_page(s, after, limit)
+
     @app.get("/api/takes/page")
     def get_takes_page(
         s: DbSession, after: int | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 20

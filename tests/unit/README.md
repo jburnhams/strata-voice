@@ -10,7 +10,7 @@ Fast and isolated: synthetic data, a migrated SQLite copy per test for the recor
 | --- | --- | --- | --- | --- |
 | `settings.py` | `test_settings.py` | 100% | done | defaults (the recordings folder in the app home), environment overrides, save, validation and reset |
 | `curriculum.py` | `test_curriculum.py` | 100% | done | the starter set: every kind present, an evaluation partition, keys stable and unique |
-| `studio.py` | `test_studio.py` | 100% | done | seeding once in order, the queue past recorded and skipped prompts, a take written as a WAV master, consent and bad files refused, a failed write keeps nothing, paging and removing takes with their files, the manifest |
+| `studio.py` | `test_studio.py` | 100% | done | seeding once in order, the queue past recorded and skipped prompts, a take written as a WAV master, consent and bad files refused, a failed write keeps nothing, paging and removing takes with their files, the queue paged by a cursor, the manifest |
 | `phonemes.py` | `test_phonemes.py` | 100% | done | the real espeak-ng: RP phonemes, stress patterns, folds into the inventory, a text that looks like an option, espeak missing or failing |
 | `coverage.py` | `test_coverage.py` | 100% | done | sentence types, a text's units, an empty inventory, only usable takes counted, the ranker's order and redundancy, ranking every five usable takes, filling style and phonemes on old rows, coverage without espeak |
 | `pilot.py` | `test_pilot.py` | 100% | done | nothing recorded; a session's verdicts, speech, crops and each check; a break starting a session; failures and near misses |

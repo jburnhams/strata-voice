@@ -2,6 +2,19 @@
 
 Newest first, grouped by day. One entry per change, in the same commit or PR as the change.
 
+## 2026-11-25
+
+**strata-voice: the hands-free studio (branch `claude/project-thread-cvjjmf`)**
+Jonathan asked for a studio mode that is always listening, captures each prompt as he says it and moves on, with an endless list of prompts, takes processed in the background and a poor take put back in the queue. Needs strata-react's `useAutoRecorder` (#336) and strata-python's `wer.find` (#79).
+- `web/src/screens/HandsFreeScreen.tsx` (**new**), `routes.tsx`, `Layout.tsx` (a Hands-free nav item): Start listening, then each take goes to the prompt showing when the speaker started it, and the screen moves on. Takes are kept one after another in the background, each a row under "Said this visit" going from Checking to its verdict, with Keep it anyway or Try again. A retry puts its prompt back after the one being read. The prompts still to read are an InfiniteList over `GET /api/queue`, with Read now. Keys: L, P, S. The header's finding counts the visit.
+- `src/stratavoice/studio.py`, `server/app.py`: `queue_page` and `GET /api/queue?after=<position.id>&limit=`. The queue is ordered by position, then id, so the cursor holds when written prompts share a position.
+- `src/stratavoice/scoring.py`: the crop and the word error rate come from the run of heard words that is the prompt (`wer.find`), so speech around the prompt is cropped out rather than failing the take. This applies in the click-to-record studio too.
+- `web/src/api.ts`: `PromptPage`, and `keys.queue` sits under `studio`, so every write that refreshes the studio refreshes the queue. `web/src/screens/StudioScreen.tsx`: `Consent` exported. Body-less POSTs drop `json: undefined`, which strata-react 1.3.5+ no longer asks for.
+- Mocks: `queuePage`, `queueLoading`, `queueError`. Stories: `stories/hands-free.stories.tsx` (**new**). Visual config: the `hands-free` route. Visual baselines are rewritten by `update-visual-baselines.yml`: the new screen, and every shot whose nav gained the Hands-free item.
+- Tests: `tests/integration/HandsFreeScreen.test.tsx` (**new**, 14 tests over the fake microphone reading a script), `tests/unit/logic.test.ts` (the visit's finding, row words, failures), `test_studio.py` (the queue's cursor), `test_server.py` (`/api/queue`), and `test_scoring.py` (chatter around the prompt cropped out; extra words inside it still a retry).
+- Docs: AGENTS, README, implementation-plan (4a), progress.
+- Review (Codex): Read now is disabled while a take is being said, as Skip already was, so a take cannot be credited to a prompt the screen no longer shows. A skip pins the prompt that replaces it by id, so a take that comes back as a retry while the skip is open does not take its place; Undo still brings the skipped prompt back to the front. Three integration tests cover them, and skipping the last prompt.
+
 ## 2026-11-24
 
 **strata-voice: no free-talk prompts (branch `claude/project-thread-cvjjmf`)**
