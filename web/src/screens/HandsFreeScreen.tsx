@@ -149,6 +149,8 @@ function HandsFree({ studio, said, setSaid }: { studio: Studio; said: Said[]; se
   const queryClient = useQueryClient()
   const undoable = useUndoable()
   const [currentId, setCurrentId] = useState<number | null>(null)
+  // The last skip: the prompt skipped and the one pinned in its place, so Undo can bring the skipped one back.
+  const [skipped, setSkipped] = useState<{ from: number; to: number | null } | null>(null)
   const [paused, setPaused] = useState(false)
 
   const queue = useInfiniteLoad({
@@ -160,7 +162,10 @@ function HandsFree({ studio, said, setSaid }: { studio: Studio; said: Said[]; se
   const held = new Set(said.filter(holds).map(s => s.prompt.id))
   const open = (p: Prompt) => !held.has(p.id) && !undoable.isRemoved(String(p.id))
   const waiting = queue.status === 'ready' ? queue.data.filter(open) : []
-  const current = waiting.find(p => p.id === currentId) ?? waiting[0]
+  // Undone: the skipped prompt is shown again while its replacement is still the one showing.
+  const undone =
+    skipped && skipped.to === currentId && !undoable.isRemoved(String(skipped.from)) ? waiting.find(p => p.id === skipped.from) : undefined
+  const current = undone ?? waiting.find(p => p.id === currentId) ?? waiting[0]
   const finished = queue.status === 'ready' && !current && !queue.more.hasMore && !said.some(s => s.phase === 'saving')
 
   // The prompt a take is for, fixed when the speaker started saying it.
@@ -223,7 +228,11 @@ function HandsFree({ studio, said, setSaid }: { studio: Studio; said: Said[]; se
   }
 
   const skip = (p: Prompt) => {
-    setCurrentId(null) // the first prompt still waiting; Undo brings this one back to the front
+    // Pinned by id, so a take that comes back as a retry while this skip is open does not take the replacement's
+    // place; Undo brings this one back to the front (`undone` above).
+    const to = waiting.find(w => w.id !== p.id)?.id ?? null
+    setCurrentId(to)
+    setSkipped({ from: p.id, to })
     undoable.schedule({
       id: String(p.id),
       message: `Skipped “${p.text}”.`,
@@ -333,7 +342,7 @@ function HandsFree({ studio, said, setSaid }: { studio: Studio; said: Said[]; se
                 <div className="flex items-center gap-4 py-2 type-body-sm">
                   <span className="min-w-0 flex-1 truncate">{p.text}</span>
                   <span className="hidden w-40 shrink-0 text-muted-foreground sm:block">{kindName(p.kind)}</span>
-                  <RowAction label="Read now" subject={p.text} onClick={() => setCurrentId(p.id)} />
+                  <RowAction label="Read now" subject={p.text} onClick={() => setCurrentId(p.id)} disabled={speaking} />
                 </div>
               )
             }

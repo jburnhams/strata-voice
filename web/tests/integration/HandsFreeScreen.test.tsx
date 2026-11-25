@@ -114,6 +114,41 @@ describe('Hands-free', () => {
     expect(screen.getByRole('heading', { level: 2, name: sixth.text })).toBeInTheDocument()
   })
 
+  it('keeps the prompt that replaced a skipped one when an earlier take comes back to be said again', async () => {
+    // The take for the fourth is checked slowly and comes back misread, after the fifth has been skipped.
+    server.use(
+      http.post('*/api/prompts/:id/takes', async () => {
+        await delay(400)
+        return undefined
+      }),
+      keepMisread,
+    )
+    const { user } = openApp('/hands-free', { microphone: reader(1) })
+    await user.click(await screen.findByRole('button', { name: 'Start listening' }))
+    expect(await screen.findByRole('heading', { level: 2, name: fifth.text }, { timeout: 3000 })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(await screen.findByRole('heading', { level: 2, name: sixth.text })).toBeInTheDocument()
+    expect(await said().findByText('Back in the queue', {}, { timeout: 3000 })).toBeInTheDocument()
+    await waitFor(() => expect(within(nextUp()).getAllByRole('row')[0]).toHaveTextContent(fourth.text))
+    expect(screen.getByRole('heading', { level: 2, name: sixth.text })).toBeInTheDocument()
+    // Undo still brings the skipped prompt back to the front.
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(await screen.findByRole('heading', { level: 2, name: fifth.text })).toBeInTheDocument()
+  })
+
+  it('does not change the prompt while a take is being said', async () => {
+    const { user } = openApp('/hands-free', {
+      microphone: fakeMicrophone({ script: speechScript(1, { speak: 30, gap: 1 }), speed: 1 }),
+    })
+    await user.click(await screen.findByRole('button', { name: 'Start listening' }))
+    await waitFor(() => expect(screen.getByRole('meter', { name: 'Input level' })).toHaveAccessibleDescription(/^Hearing you/), {
+      timeout: 3000,
+    })
+    expect(within(nextUp()).getByRole('button', { name: `Read now ${sixth.text}` })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Stop listening' }))
+  })
+
   it('says why the microphone did not open', async () => {
     const { user } = openApp('/hands-free', {
       microphone: fakeMicrophone({ refuse: 'No microphone was found. Plug one in, then try again.' }),
@@ -149,6 +184,13 @@ describe('Hands-free', () => {
     await user.click(await screen.findByRole('button', { name: 'Start listening' }))
     expect(await screen.findByText('Waiting for the last takes to be checked…', {}, { timeout: 3000 })).toBeInTheDocument()
     expect(said().getByText('Cut at the longest take: say it again if it ran on.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Read every prompt' })).toBeInTheDocument()
+  })
+
+  it('has its done moment when the last prompt is skipped', async () => {
+    server.use(http.get('*/api/queue', () => HttpResponse.json({ items: [fourth], next: null, total: null })))
+    const { user } = openApp('/hands-free')
+    await user.click(await screen.findByRole('button', { name: 'Skip' }))
     expect(await screen.findByRole('heading', { name: 'Read every prompt' })).toBeInTheDocument()
   })
 

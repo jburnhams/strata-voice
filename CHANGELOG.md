@@ -11,8 +11,9 @@ Jonathan asked for a studio mode that is always listening, captures each prompt 
 - `src/stratavoice/scoring.py`: the crop and the word error rate come from the run of heard words that is the prompt (`wer.find`), so speech around the prompt is cropped out rather than failing the take. This applies in the click-to-record studio too.
 - `web/src/api.ts`: `PromptPage`, and `keys.queue` sits under `studio`, so every write that refreshes the studio refreshes the queue. `web/src/screens/StudioScreen.tsx`: `Consent` exported. Body-less POSTs drop `json: undefined`, which strata-react 1.3.5+ no longer asks for.
 - Mocks: `queuePage`, `queueLoading`, `queueError`. Stories: `stories/hands-free.stories.tsx` (**new**). Visual config: the `hands-free` route. Visual baselines are rewritten by `update-visual-baselines.yml`: the new screen, and every shot whose nav gained the Hands-free item.
-- Tests: `tests/integration/HandsFreeScreen.test.tsx` (**new**, 11 tests over the fake microphone reading a script), `tests/unit/logic.test.ts` (the visit's finding, row words, failures), `test_studio.py` (the queue's cursor), `test_server.py` (`/api/queue`), and `test_scoring.py` (chatter around the prompt cropped out; extra words inside it still a retry).
+- Tests: `tests/integration/HandsFreeScreen.test.tsx` (**new**, 14 tests over the fake microphone reading a script), `tests/unit/logic.test.ts` (the visit's finding, row words, failures), `test_studio.py` (the queue's cursor), `test_server.py` (`/api/queue`), and `test_scoring.py` (chatter around the prompt cropped out; extra words inside it still a retry).
 - Docs: AGENTS, README, implementation-plan (4a), progress.
+- Review (Codex): Read now is disabled while a take is being said, as Skip already was, so a take cannot be credited to a prompt the screen no longer shows. A skip pins the prompt that replaces it by id, so a take that comes back as a retry while the skip is open does not take its place; Undo still brings the skipped prompt back to the front. Three integration tests cover them, and skipping the last prompt.
 
 ## 2026-11-24
 
