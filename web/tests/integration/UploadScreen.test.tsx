@@ -5,7 +5,7 @@ import { uploadRefused, uploadsEmpty, uploadsError, uploadsEveryState } from '..
 import { openApp, screen, waitFor, within } from '../utils/render'
 import { mock, server } from '../utils/server'
 
-const list = () => screen.getByRole('grid', { name: 'Recordings brought in, newest first' })
+const list = () => screen.getByRole('list', { name: 'Recordings brought in, newest first' })
 const items = () => [...list().querySelectorAll<HTMLElement>('[data-index]')]
 const file = (name: string, type = 'audio/mp4') => new File([new Uint8Array(2048)], name, { type })
 

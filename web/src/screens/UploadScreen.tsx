@@ -182,7 +182,10 @@ export function UploadScreen() {
             </EmptyState>
           }
           end="That is every recording brought in."
-          estimateSize={64}
+          // A plain list that scrolls with the page, not virtual rows: a row's height depends on how its summary wraps,
+          // and virtual rows placed by an estimate before they are measured drew a gap that came and went.
+          scroll="page"
+          listClassName="grid divide-y divide-border"
         >
           {u => {
             const state = uploadWord(u)

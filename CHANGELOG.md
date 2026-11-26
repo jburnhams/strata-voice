@@ -24,6 +24,7 @@ Jonathan found a recording of himself and asked for an upload section that takes
 - `.github/workflows/unit.yml`, `integration.yml`: ffmpeg on every runner (the same step as strata-python's CI), checked before the tests.
 - Web:
   - `src/screens/UploadScreen.tsx` (**new**): drop or choose recordings (`useFileIntake`, with the server's own refusal shown on the file), each job while it runs (`useJob` → `JobStatus`, with Stop), and the paged list of what each gave, with Sentences of, Try again and Remove (behind a confirm, as it deletes files).
+  - The Brought in list scrolls with the page (`InfiniteList scroll="page"`), not as virtual rows: a row's height depends on how its summary wraps, and virtual rows placed by an estimate before they were measured drew a gap that came and went (the Every state dark screenshot differed on CI).
   - `routes.tsx` and `Layout.tsx`: the Upload nav item.
   - `TakesScreen.tsx`: `?upload=` lists one upload's sentences, with Every take to go back and Keep anyway on a sentence judged someone else's.
   - `api.ts`: `uploadWord`, `uploadSummary`, `activeJob` and `postUpload`; a found retry reads "Someone else" or "Left out".
