@@ -2,7 +2,7 @@
 // tests, every Storybook story and the visual suite's screenshots, so a screen looks the same in
 // each. Dates are fixed, so screenshots do not change from day to day. The prompts are a few of the
 // real starter curriculum's (src/stratavoice/curriculum.py).
-import type { Prompt, Settings, SystemStatus, Take, Written } from '../api'
+import type { Prompt, Settings, SystemStatus, Take, Task, Upload, Written } from '../api'
 
 export const defaultSettings: Settings = {
   recordings_dir: '/home/ada/.stratavoice/recordings',
@@ -59,6 +59,9 @@ export function goodScore(
   | 'clipped'
   | 'speech_start'
   | 'speech_end'
+  | 'upload_id'
+  | 'source_start'
+  | 'speaker_similarity'
 > {
   return {
     verdict: 'good',
@@ -73,6 +76,9 @@ export function goodScore(
     clipped: 0,
     speech_start: 0.2,
     speech_end: Math.round((seconds - 0.2) * 1000) / 1000,
+    upload_id: null,
+    source_start: null,
+    speaker_similarity: null,
   }
 }
 
@@ -133,6 +139,120 @@ export const initialTakes = makeTakes(3)
 
 /** A long list, for paging: 50 takes, so the Takes screen needs three pages of 20. */
 export const manyTakes = makeTakes(50)
+
+/** A finished ingest job (strata-python's Task, as `GET /api/jobs/{id}` answers it). */
+export function task(id: number, over: Partial<Task> = {}): Task {
+  return {
+    id,
+    kind: 'ingest',
+    state: 'done',
+    created_at: '2026-11-25T18:00:00Z',
+    started_at: '2026-11-25T18:00:01Z',
+    finished_at: '2026-11-25T18:02:40Z',
+    error: null,
+    result: null,
+    progress: { done: 3, total: 3, text: '2 of 3 sentences kept', stage: 'done', at: '2026-11-25T18:02:40Z' },
+    attempts: 0,
+    domain: `upload:${id}`,
+    ...over,
+  }
+}
+
+/** A recording brought in and ingested: three sentences, the middle one someone else's. */
+export const kitchenUpload: Upload = {
+  id: 1,
+  name: 'kitchen-2019.m4a',
+  created: '2026-11-25T18:00:00Z',
+  size_bytes: 3_400_000,
+  seconds: 212.4,
+  gain_db: 6.2,
+  speaker_reference: 'studio',
+  job: task(1),
+  sentences: 3,
+  kept: 2,
+  other_voice: 1,
+  retry: 0,
+  kept_seconds: 5.9,
+}
+
+/** The sentences of `kitchenUpload`, in the order said (ids after the studio takes'). */
+export const kitchenSentences: Take[] = [
+  ['The kettle sang on the stove.', 1.0],
+  ['Who wants more tea?', 0.21],
+  ['Bring the blue cups from the shelf.', 0.93],
+].map(([text, similarity], i) => {
+  const seconds = 2.4 + i * 0.3
+  const p: Prompt = {
+    ...initialPrompts[0],
+    id: 100 + i,
+    key: `upload-000001-000${i + 1}`,
+    text: String(text),
+    kind: 'found',
+    source: 'upload',
+  }
+  const other = Number(similarity) < 0.4
+  return {
+    id: 10 + i,
+    prompt_id: p.id,
+    prompt_text: p.text,
+    kind: 'found',
+    seconds,
+    sample_rate: 44_100,
+    sample_width: 3,
+    size_bytes: 300_000,
+    device: `upload: ${kitchenUpload.name}`,
+    created: '2026-11-25T18:01:00Z',
+    ...goodScore(p, seconds),
+    ...(other
+      ? {
+          verdict: 'retry',
+          problems: [
+            {
+              code: 'speaker',
+              sentence: `It sounds like someone else: its voice matches yours by ${similarity}, and yours match by 0.40 or more. Keep it anyway if it is you.`,
+            },
+          ],
+        }
+      : {}),
+    upload_id: kitchenUpload.id,
+    source_start: 4 + i * 3,
+    speaker_similarity: Number(similarity),
+  }
+})
+
+/** A recording still being worked on: its job half way through judging the sentences. */
+export const talkUpload: Upload = {
+  ...kitchenUpload,
+  id: 2,
+  name: 'school-talk.mp4',
+  created: '2026-11-26T07:10:00Z',
+  seconds: 1804.2,
+  speaker_reference: null,
+  sentences: 0,
+  kept: 0,
+  other_voice: 0,
+  kept_seconds: 0,
+  job: task(2, {
+    state: 'running',
+    finished_at: null,
+    progress: { done: 41, total: 120, text: 'Judging sentence 42 of 120', stage: 'judge', at: '2026-11-26T07:12:00Z' },
+  }),
+}
+
+/** A file ffmpeg could read but whose job failed for good. */
+export const failedUpload: Upload = {
+  ...kitchenUpload,
+  id: 3,
+  name: 'voicemail.amr',
+  created: '2026-11-26T07:20:00Z',
+  seconds: 31,
+  sentences: 0,
+  kept: 0,
+  other_voice: 0,
+  kept_seconds: 0,
+  speaker_reference: null,
+  job: task(3, { state: 'failed', error: 'MediaError: ffmpeg failed (exit 1): Invalid data found when processing input', progress: null }),
+}
 
 export const GB = 1e9
 

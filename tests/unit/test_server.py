@@ -1,11 +1,13 @@
+import os
 from pathlib import Path
 
 import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 from prompts import candidate, offer
+from sqlalchemy.orm import Session
 from strata_python.testing import FakeModels, assert_openapi_current, sine_wav
-from takes import heard, speech
+from takes import found_heard, found_voices, heard, recording, speech
 
 from stratavoice import __version__, curriculum, writer
 from stratavoice.server import app as server_app
@@ -167,3 +169,81 @@ def test_coverage_and_writing_prompts(client: TestClient, models: FakeModels):
     assert (last["source"], last["style"], last["cue"]) == ("generated", "worried", "a worried question")
     assert last["score"] > 0
     assert client.get("/api/coverage").json()["waiting"] == 1
+
+
+def test_a_recording_is_brought_in_ingested_and_removed(client: TestClient, models: FakeModels, tmp_path: Path):
+    from stratavoice import ingest
+
+    data = Path(recording(str(tmp_path / "talk.flac"))).read_bytes()
+    body = {"Content-Type": "application/octet-stream"}
+    refused = client.post("/api/uploads", params={"name": "talk.flac"}, content=data, headers=body)
+    assert refused.status_code == 400
+    assert "Agree to be recorded" in refused.json()["detail"]
+    client.put("/api/settings", json={"consented_on": "2026-11-23"})
+    big = client.post(
+        "/api/uploads", params={"name": "x.wav"}, content=b"x", headers={**body, "Content-Length": "9" * 11}
+    )
+    assert big.status_code == 400
+    assert "the most accepted" in big.json()["detail"]
+    kept = client.post("/api/uploads", params={"name": "talk.flac"}, content=data, headers=body)
+    assert kept.status_code == 200, kept.text
+    up = kept.json()
+    assert (up["name"], up["job"]["state"], up["sentences"]) == ("talk.flac", "queued", 0)
+    assert client.post("/api/uploads", params={"name": "again.flac"}, content=data, headers=body).status_code == 400
+
+    queue = client.app.state.queue()  # pyright: ignore[reportAttributeAccessIssue]
+    models.down = False
+    models.results["transcribe"] = found_heard(lambda: Session(queue.engine))
+    models.results["speaker-embedding"] = found_voices
+    assert queue.step({ingest.KIND: ingest.handler(lambda: queue.engine)}).state == "done"
+    got = client.get(f"/api/uploads/{up['id']}").json()
+    assert (got["sentences"], got["kept"], got["other_voice"], got["job"]["state"]) == (3, 2, 1, "done")
+    assert got["job"]["progress"]["text"] == "2 of 3 sentences kept"
+    assert client.get("/api/uploads/page").json()["items"][0]["id"] == up["id"]
+    sentences = client.get("/api/takes/page", params={"upload": up["id"]}).json()["items"]
+    assert [t["verdict"] for t in sentences] == ["good", "retry", "good"]
+    assert client.get(f"/api/takes/{sentences[0]['id']}/audio").status_code == 200
+    assert client.get(f"/api/jobs/{up['job']['id']}").json()["kind"] == "ingest"
+    assert client.delete(f"/api/uploads/{up['id']}").json()["sentences"] == 3
+    assert client.get(f"/api/uploads/{up['id']}").status_code == 404
+    assert client.get("/api/takes/page", params={"upload": up["id"]}).json()["items"] == []
+
+
+def test_the_server_runs_ingest_jobs_on_its_own_worker(db_env: str, models: FakeModels, tmp_path: Path):
+    """Under uvicorn the lifespan starts the worker, so an upload is ingested without anyone running it."""
+    import time
+
+    from stratavoice import settings
+
+    settings.SETTINGS.save({"consented_on": "2026-11-23"})
+    data = Path(recording(str(tmp_path / "talk.flac"))).read_bytes()
+    with TestClient(create_app()) as c:
+        queue = c.app.state.queue()  # pyright: ignore[reportAttributeAccessIssue]
+        models.down = False
+        models.results["transcribe"] = found_heard(lambda: Session(queue.engine))
+        models.results["speaker-embedding"] = found_voices
+        up = c.post(
+            "/api/uploads", params={"name": "t.flac"}, content=data, headers={"Content-Type": "audio/flac"}
+        ).json()
+        deadline = time.monotonic() + 60
+        while c.get(f"/api/uploads/{up['id']}").json()["job"]["state"] != "done" and time.monotonic() < deadline:
+            time.sleep(0.2)
+        assert c.get(f"/api/uploads/{up['id']}").json()["kept"] == 2
+
+
+def test_an_upload_over_the_limit_is_refused_as_it_streams_in(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    from stratavoice import ingest, settings
+
+    client.put("/api/settings", json={"consented_on": "2026-11-23"})
+    monkeypatch.setattr(ingest, "MAX_UPLOAD_BYTES", 1000)
+
+    def chunks():  # no Content-Length: sent in pieces, so only counting what arrives can refuse it
+        yield b"x" * 600
+        yield b"x" * 600
+
+    r = client.post("/api/uploads", params={"name": "long.wav"}, content=chunks())
+    assert r.status_code == 400
+    assert "over 0 MB" in r.json()["detail"]
+    assert os.listdir(os.path.join(settings.recordings_dir(), "found", "incoming")) == []  # nothing half kept

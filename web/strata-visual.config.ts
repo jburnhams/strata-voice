@@ -6,7 +6,7 @@
 // - app: the production build served as the Python server would (history fallback), each route at
 //   a wide and a phone viewport, with every request answered in Node by the same MSW handlers the
 //   jsdom tests use. Route states here are the ones a story cannot reach without a click: a skip
-//   with its Undo bar, a removal, a field's error. None of them writes to the mock server (each
+//   with its Undo bar, a removal, a confirm dialog, a field's error. None of them writes to the mock server (each
 //   removal is still inside its undo window when the shot is taken), so shots cannot affect each other.
 //
 // The built app records from the browser's own microphone, which a screenshot run does not have, so
@@ -16,7 +16,7 @@
 // `npm run test:visual` builds both and compares; `npm run test:visual:update` writes new
 // baselines. Look at a diff in tests/visual/output/ before accepting it.
 import { defineVisualConfig } from 'strata-react/visual'
-import { initialPrompts, initialTakes } from './src/mocks/fixtures'
+import { initialPrompts, initialTakes, kitchenUpload } from './src/mocks/fixtures'
 import { handlers } from './src/mocks/handlers'
 
 export default defineVisualConfig({
@@ -50,6 +50,19 @@ export default defineVisualConfig({
             setup: async page => {
               await page.getByRole('button', { name: `Remove ${initialTakes[0].prompt_text}` }).click()
               await page.getByRole('button', { name: 'Undo' }).waitFor()
+            },
+          },
+        },
+      },
+      {
+        name: 'upload',
+        path: '/upload',
+        states: {
+          ready: [],
+          removing: {
+            setup: async page => {
+              await page.getByRole('button', { name: `Remove ${kitchenUpload.name}` }).click()
+              await page.getByRole('alertdialog').waitFor()
             },
           },
         },

@@ -1,15 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { colorSchemeScript, format } from 'strata-react'
 import { describe, expect, it } from 'vitest'
-import { crop, kindName, today, usable, verdictWord } from '../../src/api'
+import { activeJob, crop, kindName, today, uploadSummary, uploadWord, usable, verdictWord } from '../../src/api'
 import { coverageSample } from '../../src/mocks/coverage-sample'
 import {
+  failedUpload,
   initialPrompts,
+  kitchenSentences,
+  kitchenUpload,
   makeTakes,
   misreadScore,
   silentWav,
   systemNearlyFull,
   systemStatus,
+  talkUpload,
+  task,
   uncheckedScore,
 } from '../../src/mocks/fixtures'
 import { mock, studioOf, takePage } from '../../src/mocks/handlers'
@@ -39,6 +44,42 @@ describe('the studio finding', () => {
 
   it("writes today's date as the settings do, in the person's own zone", () => {
     expect(today(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05')
+  })
+})
+
+describe('an upload', () => {
+  const waiting = { ...talkUpload, job: task(2, { state: 'queued', started_at: null, finished_at: null, progress: null }) }
+  it('says where its job is, and polls it only while it is going', () => {
+    expect(uploadWord(kitchenUpload)).toEqual({ tone: 'success', word: 'Done', active: false })
+    expect(uploadWord({ ...kitchenUpload, job: null })).toEqual({ tone: 'success', word: 'Done', active: false })
+    expect(uploadWord(talkUpload).word).toBe('Working')
+    expect(uploadWord(waiting).word).toBe('Waiting')
+    expect(uploadWord({ ...waiting, job: { ...waiting.job, error: 'Unavailable: strata-models' } }).word).toBe('Waiting for models')
+    expect(uploadWord(failedUpload).word).toBe('Failed')
+    expect(uploadWord({ ...failedUpload, job: { ...failedUpload.job!, state: 'cancelled' } }).word).toBe('Stopped')
+    expect(activeJob(talkUpload)).toBe(talkUpload.job)
+    expect(activeJob(kitchenUpload)).toBeNull()
+  })
+
+  it('says what it gave in a sentence', () => {
+    expect(uploadSummary(kitchenUpload)).toBe(`2 of ${format.count(3, 'sentence')} kept, 0:05 of speech; 1 someone else’s.`)
+    expect(uploadSummary({ ...kitchenUpload, other_voice: 0, retry: 1, speaker_reference: null })).toBe(
+      `2 of ${format.count(3, 'sentence')} kept, 0:05 of speech; 1 left out for noise or a cut word; voices not checked.`,
+    )
+    expect(uploadSummary({ ...kitchenUpload, sentences: 0 })).toBe('No speech was found in it.')
+    expect(uploadSummary(talkUpload)).toBe('Judging sentence 42 of 120')
+    expect(uploadSummary(waiting)).toBe('Waiting to start.')
+    expect(uploadSummary({ ...waiting, job: { ...waiting.job, error: 'Unavailable' } })).toBe(
+      'strata-models is not running or is busy; it will be tried again.',
+    )
+    expect(uploadSummary(failedUpload)).toBe(failedUpload.job?.error)
+    expect(uploadSummary({ ...failedUpload, job: { ...failedUpload.job!, error: null } })).toBe('It could not be brought in.')
+  })
+
+  it("calls a sentence left out someone else's only for the voice", () => {
+    const [, other, mine] = kitchenSentences
+    expect(verdictWord(other).word).toBe('Someone else')
+    expect(verdictWord({ ...mine, verdict: 'retry', problems: [{ code: 'words', sentence: '…' }] }).word).toBe('Left out')
   })
 })
 

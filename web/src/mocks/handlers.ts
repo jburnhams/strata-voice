@@ -18,20 +18,27 @@ import {
   type Studio,
   type Take,
   type TakePage,
+  type Upload,
+  type UploadPage,
   usable,
 } from '../api'
 import { coverageSample } from './coverage-sample'
 import {
   defaultSettings,
+  failedUpload,
   goodScore,
   initialPrompts,
   initialTakes,
+  kitchenSentences,
+  kitchenUpload,
   makeTakes,
   manyTakes,
   misreadScore,
   systemNearlyFull as nearlyFull,
   silentWav,
   systemStatus,
+  talkUpload,
+  task,
   uncheckedScore,
   written,
 } from './fixtures'
@@ -42,6 +49,8 @@ export const mock = {
   prompts: initialPrompts.map(p => ({ ...p })) as Prompt[],
   takes: [...initialTakes] as Take[],
   coverage: { ...coverageSample } as Coverage,
+  uploads: [kitchenUpload] as Upload[],
+  sentences: [...kitchenSentences] as Take[],
 }
 
 /** Back to the healthy state: call between tests and stories. */
@@ -50,6 +59,8 @@ export function resetMock() {
   mock.prompts = initialPrompts.map(p => ({ ...p }))
   mock.takes = [...initialTakes]
   mock.coverage = { ...coverageSample }
+  mock.uploads = [kitchenUpload]
+  mock.sentences = [...kitchenSentences]
 }
 
 // Matched as paths, so they answer whatever origin and base the app runs under.
@@ -72,6 +83,12 @@ export const paths = {
   takeAudio: '/api/takes/:id/audio',
   coverage: '/api/coverage',
   write: '/api/prompts/write',
+  uploads: '/api/uploads',
+  uploadsPage: '/api/uploads/page',
+  upload: '/api/uploads/:id',
+  job: '/api/jobs/:id',
+  jobCancel: '/api/jobs/:id/cancel',
+  jobRetry: '/api/jobs/:id/retry',
 } as const
 
 const withTakes = (p: Prompt): Prompt => ({ ...p, takes: mock.takes.filter(t => t.prompt_id === p.id).length })
@@ -104,12 +121,31 @@ export function queuePage(url: string, state = mock): PromptPage {
   return { items: page.map(({ p }) => p), next: rest.length > limit && last ? `${last.i}.${last.p.id}` : null, total: null }
 }
 
-/** Serves `GET /api/takes/page?after=<id>&limit=<n>` from a list, as studio.takes_page does: a Page with the server's own `next` cursor. */
+/** Serves `GET /api/takes/page?after=<id>&limit=<n>` from a list, as studio.takes_page does: a Page with the server's own `next` cursor.
+ *  With `upload=<id>`, the sentences of that upload from `mock.sentences`, oldest first. */
 export function takePage(url: string, list: Take[]): TakePage {
   const params = new URL(url).searchParams
   const after = params.get('after')
   const limit = Number(params.get('limit') ?? 20)
+  const upload = params.get('upload')
+  if (upload !== null) {
+    const of = mock.sentences.filter(t => t.upload_id === Number(upload))
+    const rest = after === null ? of : of.filter(t => t.id > Number(after))
+    const items = rest.slice(0, limit)
+    return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
+  }
   const rest = after === null ? list : list.filter(t => t.id < Number(after))
+  const items = rest.slice(0, limit)
+  return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
+}
+
+/** Serves `GET /api/uploads/page`, newest first, as ingest.uploads_page does. */
+export function uploadPage(url: string, list: Upload[]): UploadPage {
+  const params = new URL(url).searchParams
+  const after = params.get('after')
+  const limit = Number(params.get('limit') ?? 20)
+  const sorted = [...list].sort((a, b) => b.id - a.id)
+  const rest = after === null ? sorted : sorted.filter(u => u.id < Number(after))
   const items = rest.slice(0, limit)
   return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
 }
@@ -177,6 +213,36 @@ export const handlers = [
     mock.coverage = { ...mock.coverage, waiting: mock.coverage.waiting + added }
     return HttpResponse.json({ ...written, offered: count, added, waiting: mock.coverage.waiting })
   }),
+  http.get(at(paths.uploadsPage), ({ request }) => HttpResponse.json(uploadPage(request.url, mock.uploads))),
+  http.post(at(paths.uploads), async ({ request }) => {
+    if (!mock.settings.consented_on) return refused('Agree to be recorded first: nothing is kept until you do.')
+    const name = new URL(request.url).searchParams.get('name') ?? 'recording'
+    const body = await request.arrayBuffer()
+    if (mock.uploads.some(u => u.name === name)) return refused(`${name} was brought in already, as ${name} on 2026-11-25.`)
+    const id = Math.max(0, ...mock.uploads.map(u => u.id)) + 1
+    const queued = task(id, { state: 'queued', started_at: null, finished_at: null, progress: null })
+    const up: Upload = { ...talkUpload, id, name, size_bytes: body.byteLength, created: '2026-11-26T08:00:00Z', job: queued }
+    mock.uploads = [...mock.uploads, up]
+    return HttpResponse.json(up)
+  }),
+  http.get(at(paths.upload), ({ params }) => {
+    const found = mock.uploads.find(u => u.id === Number(params.id))
+    return found ? HttpResponse.json(found) : refused(`There is no upload ${String(params.id)}.`, 404)
+  }),
+  http.delete(at(paths.upload), ({ params }) => {
+    const found = mock.uploads.find(u => u.id === Number(params.id))
+    if (!found) return refused(`There is no upload ${String(params.id)}.`, 404)
+    mock.uploads = mock.uploads.filter(u => u !== found)
+    mock.sentences = mock.sentences.filter(t => t.upload_id !== found.id)
+    return HttpResponse.json(found)
+  }),
+  http.get(at(paths.job), ({ params }) => {
+    // The every-state fixtures too, which a story serves from its own handler rather than from `mock`.
+    const found = [...mock.uploads, talkUpload, failedUpload].find(u => u.job && String(u.job.id) === params.id)?.job
+    return found ? HttpResponse.json(found) : refused(`there is no job ${String(params.id)}`, 404)
+  }),
+  http.post(at(paths.jobCancel), ({ params }) => jobTo(String(params.id), { state: 'cancelled', finished_at: '2026-11-26T08:01:00Z' })),
+  http.post(at(paths.jobRetry), ({ params }) => jobTo(String(params.id), { state: 'queued', error: null, finished_at: null })),
   http.delete(at(paths.take), ({ params }) => {
     const found = mock.takes.find(t => t.id === Number(params.id))
     if (!found) return refused(`There is no take ${String(params.id)}.`, 404)
@@ -185,13 +251,28 @@ export const handlers = [
   }),
 ]
 
-/** Keeps a take judged `retry` anyway, or takes that back, as studio.accept_take does. */
+/** Keeps a take judged `retry` anyway, or takes that back, as studio.accept_take does (a studio take or a sentence
+ *  of an upload, whose upload then counts it as kept). */
 function accept(id: number, accepted: boolean) {
-  const found = mock.takes.find(t => t.id === id)
+  const found = mock.takes.find(t => t.id === id) ?? mock.sentences.find(t => t.id === id)
   if (!found) return refused(`There is no take ${id}.`, 404)
   const changed = { ...found, accepted }
   mock.takes = mock.takes.map(t => (t === found ? changed : t))
+  mock.sentences = mock.sentences.map(t => (t === found ? changed : t))
+  if (found.upload_id !== null && found.verdict === 'retry' && accepted !== found.accepted) {
+    const n = accepted ? 1 : -1
+    mock.uploads = mock.uploads.map(u => (u.id === found.upload_id ? { ...u, kept: u.kept + n, other_voice: u.other_voice - n } : u))
+  }
   return HttpResponse.json(changed)
+}
+
+/** Moves an upload's job to another state, as the queue's cancel and retry do. */
+function jobTo(id: string, change: Partial<NonNullable<Upload['job']>>) {
+  const found = mock.uploads.find(u => u.job && String(u.job.id) === id)
+  if (!found?.job) return refused(`there is no job ${id}`, 404)
+  const job = { ...found.job, ...change }
+  mock.uploads = mock.uploads.map(u => (u === found ? { ...u, job } : u))
+  return HttpResponse.json(job)
 }
 
 // States. A request that never answers is "loading"; 503 is a server that is down. The app's query
@@ -275,3 +356,15 @@ export const writeDown = http.post(at(paths.write), () =>
 )
 /** The server fails with no reason given. */
 export const writeFails = http.post(at(paths.write), down)
+
+export const uploadsLoading = http.get(at(paths.uploadsPage), () => delay('infinite'))
+export const uploadsEmpty = http.get(at(paths.uploadsPage), () => HttpResponse.json({ items: [], next: null, total: null }))
+export const uploadsError = http.get(at(paths.uploadsPage), down)
+/** One recording of each state: ingested, still being worked on, and failed. */
+export const uploadsEveryState = http.get(at(paths.uploadsPage), ({ request }) =>
+  HttpResponse.json(uploadPage(request.url, [kitchenUpload, talkUpload, failedUpload])),
+)
+/** The server refuses a file ffprobe cannot read. */
+export const uploadRefused = http.post(at(paths.uploads), ({ request }) =>
+  refused(`${new URL(request.url).searchParams.get('name')} is not a recording ffmpeg can read.`),
+)

@@ -218,6 +218,86 @@
     "title": "Page[TakeOut]",
     "type": "object"
    },
+   "Page_Task_": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/Task"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "next": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     }
+    },
+    "required": [
+     "items",
+     "next",
+     "total"
+    ],
+    "title": "Page[Task]",
+    "type": "object"
+   },
+   "Page_UploadOut_": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/UploadOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "next": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     }
+    },
+    "required": [
+     "items",
+     "next",
+     "total"
+    ],
+    "title": "Page[UploadOut]",
+    "type": "object"
+   },
    "Problem": {
     "description": "One reason a take should be recorded again, in words the speaker can act on.",
     "properties": {
@@ -235,40 +315,6 @@
      "sentence"
     ],
     "title": "Problem",
-    "type": "object"
-   },
-   "Progress": {
-    "description": "How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`\ncount every take kept, retries included.",
-    "properties": {
-     "prompts": {
-      "title": "Prompts",
-      "type": "integer"
-     },
-     "recorded": {
-      "title": "Recorded",
-      "type": "integer"
-     },
-     "seconds": {
-      "title": "Seconds",
-      "type": "number"
-     },
-     "skipped": {
-      "title": "Skipped",
-      "type": "integer"
-     },
-     "takes": {
-      "title": "Takes",
-      "type": "integer"
-     }
-    },
-    "required": [
-     "prompts",
-     "recorded",
-     "skipped",
-     "takes",
-     "seconds"
-    ],
-    "title": "Progress",
     "type": "object"
    },
    "PromptOut": {
@@ -446,7 +492,7 @@
       "type": "integer"
      },
      "progress": {
-      "$ref": "#/components/schemas/Progress"
+      "$ref": "#/components/schemas/stratavoice__studio__Progress"
      },
      "queue": {
       "items": {
@@ -630,6 +676,28 @@
       "title": "Size Bytes",
       "type": "integer"
      },
+     "source_start": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Start"
+     },
+     "speaker_similarity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speaker Similarity"
+     },
      "speech_db": {
       "anyOf": [
        {
@@ -673,6 +741,17 @@
        }
       ],
       "title": "Transcript"
+     },
+     "upload_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upload Id"
      },
      "verdict": {
       "anyOf": [
@@ -719,9 +798,127 @@
      "speech_db",
      "clipped",
      "speech_start",
-     "speech_end"
+     "speech_end",
+     "upload_id",
+     "source_start",
+     "speaker_similarity"
     ],
     "title": "TakeOut",
+    "type": "object"
+   },
+   "Task": {
+    "description": "A job or task row as an API answers it.",
+    "properties": {
+     "attempts": {
+      "default": 0,
+      "title": "Attempts",
+      "type": "integer"
+     },
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "domain": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Domain"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "title": "Id"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/strata_python__contracts__Progress"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "result": {
+      "title": "Result"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "state": {
+      "enum": [
+       "queued",
+       "running",
+       "done",
+       "failed",
+       "cancelled"
+      ],
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "kind",
+     "state",
+     "created_at",
+     "started_at",
+     "finished_at",
+     "error",
+     "result",
+     "progress",
+     "attempts",
+     "domain"
+    ],
+    "title": "Task",
     "type": "object"
    },
    "UnitOut": {
@@ -753,6 +950,108 @@
      "example"
     ],
     "title": "UnitOut",
+    "type": "object"
+   },
+   "UploadOut": {
+    "description": "An upload and how far it has got: `job` is its ingest job (null for one whose job was pruned). Of its\n`sentences`, `kept` count in the dataset (with `kept_seconds` of speech), `other_voice` were someone else and\n`retry` had another problem (cut, unclear, noisy). `speaker_reference` is what voices were compared with: `studio`,\n`upload` (the voice that speaks most here) or null (not checked).",
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "gain_db": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gain Db"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "job": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Task"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kept": {
+      "title": "Kept",
+      "type": "integer"
+     },
+     "kept_seconds": {
+      "title": "Kept Seconds",
+      "type": "number"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "other_voice": {
+      "title": "Other Voice",
+      "type": "integer"
+     },
+     "retry": {
+      "title": "Retry",
+      "type": "integer"
+     },
+     "seconds": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seconds"
+     },
+     "sentences": {
+      "title": "Sentences",
+      "type": "integer"
+     },
+     "size_bytes": {
+      "title": "Size Bytes",
+      "type": "integer"
+     },
+     "speaker_reference": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Speaker Reference"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "created",
+     "size_bytes",
+     "seconds",
+     "gain_db",
+     "speaker_reference",
+     "job",
+     "sentences",
+     "kept",
+     "other_voice",
+     "retry",
+     "kept_seconds"
+    ],
+    "title": "UploadOut",
     "type": "object"
    },
    "ValidationError": {
@@ -854,6 +1153,98 @@
     ],
     "title": "Written",
     "type": "object"
+   },
+   "strata_python__contracts__Progress": {
+    "description": "How far a task has got. `total` None means not known yet; `text` is the line a person reads (\"Page 3 of 40\").",
+    "properties": {
+     "at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "At"
+     },
+     "done": {
+      "default": 0,
+      "title": "Done",
+      "type": "number"
+     },
+     "stage": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage"
+     },
+     "text": {
+      "default": "",
+      "title": "Text",
+      "type": "string"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     }
+    },
+    "required": [
+     "done",
+     "total",
+     "text",
+     "stage",
+     "at"
+    ],
+    "title": "Progress",
+    "type": "object"
+   },
+   "stratavoice__studio__Progress": {
+    "description": "How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`\ncount every take kept, retries included.",
+    "properties": {
+     "prompts": {
+      "title": "Prompts",
+      "type": "integer"
+     },
+     "recorded": {
+      "title": "Recorded",
+      "type": "integer"
+     },
+     "seconds": {
+      "title": "Seconds",
+      "type": "number"
+     },
+     "skipped": {
+      "title": "Skipped",
+      "type": "integer"
+     },
+     "takes": {
+      "title": "Takes",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "prompts",
+     "recorded",
+     "skipped",
+     "takes",
+     "seconds"
+    ],
+    "title": "Progress",
+    "type": "object"
    }
   }
  },
@@ -899,6 +1290,276 @@
      }
     },
     "summary": "Get Health"
+   }
+  },
+  "/api/jobs": {
+   "get": {
+    "operationId": "list_jobs_api_jobs_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "items": {
+          "enum": [
+           "queued",
+           "running",
+           "done",
+           "failed",
+           "cancelled"
+          ],
+          "type": "string"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "domain",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Domain"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Page_Task_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Jobs",
+    "tags": [
+     "jobs"
+    ]
+   }
+  },
+  "/api/jobs/counts": {
+   "get": {
+    "operationId": "job_counts_api_jobs_counts_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "title": "Response Job Counts Api Jobs Counts Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Job Counts",
+    "tags": [
+     "jobs"
+    ]
+   }
+  },
+  "/api/jobs/{job_id}": {
+   "get": {
+    "operationId": "get_job_api_jobs__job_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "job_id",
+      "required": true,
+      "schema": {
+       "title": "Job Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Job",
+    "tags": [
+     "jobs"
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/cancel": {
+   "post": {
+    "operationId": "cancel_job_api_jobs__job_id__cancel_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "job_id",
+      "required": true,
+      "schema": {
+       "title": "Job Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Cancel Job",
+    "tags": [
+     "jobs"
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/retry": {
+   "post": {
+    "operationId": "retry_job_api_jobs__job_id__retry_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "job_id",
+      "required": true,
+      "schema": {
+       "title": "Job Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Retry Job",
+    "tags": [
+     "jobs"
+    ]
    }
   },
   "/api/manifest.jsonl": {
@@ -1323,6 +1984,22 @@
        "title": "Limit",
        "type": "integer"
       }
+     },
+     {
+      "in": "query",
+      "name": "upload",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Upload"
+      }
      }
     ],
     "responses": {
@@ -1534,6 +2211,190 @@
      }
     },
     "summary": "Post Score"
+   }
+  },
+  "/api/uploads": {
+   "post": {
+    "operationId": "post_upload_api_uploads_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/octet-stream": {
+       "schema": {
+        "format": "binary",
+        "type": "string"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Upload"
+   }
+  },
+  "/api/uploads/page": {
+   "get": {
+    "operationId": "get_uploads_page_api_uploads_page_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Page_UploadOut_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Uploads Page"
+   }
+  },
+  "/api/uploads/{upload_id}": {
+   "delete": {
+    "operationId": "delete_upload_api_uploads__upload_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "upload_id",
+      "required": true,
+      "schema": {
+       "title": "Upload Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Upload"
+   },
+   "get": {
+    "operationId": "get_upload_api_uploads__upload_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "upload_id",
+      "required": true,
+      "schema": {
+       "title": "Upload Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Upload"
    }
   }
  }

@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 from prompts import candidate, offer
+from sqlalchemy.orm import Session
 from strata_python.testing import FakeModels, sine_wav
-from takes import heard, speech
+from takes import found_heard, found_voices, heard, recording, speech
 
 from stratavoice import cli, curriculum, db, settings, studio
 from stratavoice.server import app as server_app
@@ -146,3 +147,27 @@ def test_pilot_command(capsys: pytest.CaptureFixture[str], db_env: str):
     assert cli.main(["pilot", "--since", "2000-01-01", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
     assert (report["takes"], report["verdicts"]["unscored"]) == (1, 1)
+
+
+def test_ingest_brings_in_files_and_runs_them_here(
+    capsys: pytest.CaptureFixture[str], db_env: str, models: FakeModels, tmp_path: Path
+):
+    from sqlalchemy import create_engine
+
+    talk = recording(str(tmp_path / "talk.flac"))
+    assert cli.main(["ingest", talk]) == 1  # not consented
+    assert "Agree to be recorded" in capsys.readouterr().err
+    settings.SETTINGS.save({"consented_on": "2026-11-24"})
+    assert cli.main(["ingest", talk]) == 1  # strata-models down: left queued to try again
+    assert "not finished" in capsys.readouterr().err
+    assert Path(talk).is_file()  # brought in as a copy
+    engine = create_engine(db_env)
+    models.down = False
+    models.results["transcribe"] = found_heard(lambda: Session(engine))
+    models.results["speaker-embedding"] = found_voices
+    other = recording(str(tmp_path / "other.flac"), amplitude=0.07)
+    assert cli.main(["ingest", other]) == 0
+    out = capsys.readouterr().out
+    assert "3 sentences: 2 kept" in out
+    assert "1 someone else's" in out
+    engine.dispose()

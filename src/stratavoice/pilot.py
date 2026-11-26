@@ -80,7 +80,7 @@ def _seconds(t: Take) -> float:
 
 def session(db: Session, since: datetime.date | None = None) -> list[Take]:
     """The takes of the newest session, oldest first; or every take from the start of `since` (UTC) on."""
-    takes = list(db.scalars(select(Take).order_by(Take.id)))
+    takes = list(db.scalars(select(Take).where(Take.upload_id.is_(None)).order_by(Take.id)))  # studio takes only
     if since is not None:
         start = datetime.datetime.combine(since, datetime.time(), datetime.UTC)
         return [t for t in takes if _utc(t.created) >= start]

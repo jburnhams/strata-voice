@@ -5,6 +5,10 @@
 // Remove as RowActions named by the prompt. One player above the list plays the take chosen, so a long list
 // does not mount a player per row. Removing a take is reversible for a few seconds (useUndoable -> UndoBar)
 // and then deletes the file; the prompt comes back to the studio's queue when its last take goes.
+//
+// `?upload=<id>` (the Upload screen's "Sentences of") narrows the list to the sentences cut from one recording, in the
+// order they were said. A sentence there cannot be recorded again, so one left out (someone else's voice, a cut word)
+// has Keep anyway, as a studio take judged `retry` has in the studio; it is in the URL, so a reload keeps the filter.
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
@@ -20,8 +24,10 @@ import {
   Skeleton,
   SPEECH_RATES,
   Status,
+  TextLink,
   UndoBar,
   useInfiniteLoad,
+  useSearchParam,
   useUndoable,
 } from 'strata-react'
 import { api, crop, keys, kindName, type Take, takeAudio, verdictWord } from '../api'
@@ -50,10 +56,15 @@ export function TakesScreen() {
   const queryClient = useQueryClient()
   const undoable = useUndoable()
   const [playing, setPlaying] = useState<Take | null>(null)
+  const [uploadParam] = useSearchParam('upload', { default: '', parse: raw => /^\d+$/.test(raw) })
+  const upload = uploadParam ? Number(uploadParam) : null
   const takes = useInfiniteLoad({
-    queryKey: keys.takes,
+    queryKey: [...keys.takes, { upload }],
     queryFn: ({ cursor, signal }) =>
-      api.get('/api/takes/page', { query: { after: cursor === undefined ? null : Number(cursor), limit: PAGE_SIZE }, signal }),
+      api.get('/api/takes/page', {
+        query: { after: cursor === undefined ? null : Number(cursor), limit: PAGE_SIZE, upload },
+        signal,
+      }),
     itemKey: (t: Take) => String(t.id),
     ...apiPage<Take>(),
   })
@@ -80,9 +91,22 @@ export function TakesScreen() {
     })
   }
 
+  const keepAnyway = async (t: Take) => {
+    await api.post('/api/takes/{take_id}/accept', { path: { take_id: t.id } })
+    for (const key of [keys.takes, keys.uploads, keys.coverage]) await queryClient.invalidateQueries({ queryKey: key })
+  }
+
   return (
     <>
-      <PageHeader title="Takes" scope="Every take kept, newest first" />
+      {upload === null ? (
+        <PageHeader title="Takes" scope="Every take kept, newest first" />
+      ) : (
+        <PageHeader
+          title="Takes"
+          scope="The sentences cut from one recording you brought in, in the order said"
+          actions={<TextLink to="/takes">Every take</TextLink>}
+        />
+      )}
       {playing && (
         <section aria-labelledby="listening" className="grid max-w-xl gap-2">
           <h2 id="listening" className="type-heading">
@@ -134,6 +158,9 @@ export function TakesScreen() {
               <span className="hidden w-40 shrink-0 text-muted-foreground tabular-nums sm:block">{format.dateTime(t.created)}</span>
               <span className="flex shrink-0 gap-1">
                 <RowAction label="Listen to" subject={t.prompt_text} onClick={() => setPlaying(t)} />
+                {t.upload_id !== null && t.verdict === 'retry' && !t.accepted && (
+                  <RowAction label="Keep anyway" subject={t.prompt_text} onClick={() => void keepAnyway(t)} />
+                )}
                 <RowAction label="Remove" subject={t.prompt_text} onClick={() => remove(t)} />
               </span>
             </div>

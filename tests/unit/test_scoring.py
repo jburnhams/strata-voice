@@ -129,3 +129,43 @@ def test_a_clean_take_is_unchecked_when_the_service_cannot_answer(
     models.results["transcribe"] = heard(prompt.text)
     assert studio.score_take(db_session, t.id).verdict == "good"
     assert studio.unscored(db_session) == []
+
+
+def test_a_sentence_of_an_upload_is_described_in_its_own_words():
+    """An upload's sentence is judged against what the whole recording said, so its sentences say so."""
+    import datetime
+
+    from stratavoice.models import Prompt, Take
+
+    now = datetime.datetime.now(datetime.UTC)
+    p = Prompt(
+        key="u",
+        text="the blue cups",
+        kind="found",
+        cue=None,
+        partition="train",
+        source="upload",
+        position=1,
+        created=now,
+    )
+    t = Take(
+        prompt_id=1,
+        path="",
+        sample_rate=16000,
+        sample_width=2,
+        frames=16000,
+        size_bytes=1,
+        sha256="",
+        device=None,
+        created=now,
+    )
+    t.upload_id = 1
+    t.problems, t.transcript = "words", "the red cups"
+    assert "not what the whole recording said: “blue”" in scoring.problems(t, p)[0].sentence
+    t.transcript = "the blue cups and saucers"
+    assert scoring.problems(t, p)[0].sentence.startswith("Heard on its own, it has more words")
+    t.transcript = None
+    t.problems = "no_speech words"
+    no_words, more = scoring.problems(t, p)
+    assert "cut out of the recording" in no_words.sentence
+    assert "It heard" not in more.sentence
