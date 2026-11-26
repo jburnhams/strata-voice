@@ -12,7 +12,7 @@ dependencies = [
     # The shared server code (settings, web serving, CLI commands, contracts, the database, the test plugin and the gate).
     # It brings FastAPI, uvicorn and pydantic at the versions it was tested with; [db] adds SQLAlchemy, Alembic and psycopg.
     # While 0.x a minor release may break, so cap below the next minor; dependabot moves the lock inside the range.
-    "strata-python[db]>=0.2.19,<0.3",
+    "strata-python[db]>=0.2.23,<0.3",
     "tzdata; sys_platform == 'win32'",   # IANA timezone database, needed on Windows for zoneinfo
 ]
 
@@ -72,10 +72,6 @@ ignore = ["E501"]        # the formatter wraps code; long comments and docstring
 include = ["src"]
 pythonVersion = "3.11"
 typeCheckingMode = "strict"
-
-# Until strata-python's next release (speaker_embeddings, strata-python PR #87): drop this and raise the floor then.
-[tool.uv.sources]
-strata-python = { git = "https://github.com/jburnhams/strata-python", rev = "582eb5db4122b71763abeb4f02342d09fa58cbd1" }
 
 [tool.strata-db]
 file = "src/stratavoice/strata-db.toml"
