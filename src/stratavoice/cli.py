@@ -2,19 +2,23 @@
 `openapi` (the schema file the web app's types are generated from). The app's own: `prompts` lists the queue with
 how far each prompt has got, `takes` lists the kept takes with their verdicts, `score` judges the takes not judged yet
 (after strata-models was not running), `manifest` writes the dataset manifest (JSONL), `coverage` says what the
-recordings cover and lack, `write` has the prompt writer add a batch of prompts, `rank` orders the queue again, and `pilot` reads a session's
-takes against the scoring thresholds (step 4, tuning them)."""
+recordings cover and lack, `write` has the prompt writer add a batch of prompts, `rank` orders the queue again, `pilot` reads a session's
+takes against the scoring thresholds (step 4, tuning them), and `ingest` brings in found recordings (the Upload screen's
+work, for files too big to send through a browser)."""
 
 import argparse
 import datetime
 import json
+import os
+import shutil
 import sys
+import uuid
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from strata_python import cli as shared
 
-from stratavoice import __version__, coverage, db, phonemes, pilot, settings, studio, writer
+from stratavoice import __version__, coverage, db, ingest, models, phonemes, pilot, settings, studio, writer
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -67,6 +71,49 @@ def cmd_score(args: argparse.Namespace) -> int:
             why = " ".join(p.sentence for p in t.problems)
             print(f"  #{t.id:<5} {t.verdict:10} {why or t.prompt_text[:60]}")
     return 0
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    """Bring in each file (a copy: the file stays where it is), then run its ingest job here, now."""
+    from sqlalchemy.orm import Session
+    from strata_python.contracts import FINISHED
+    from strata_python.tasks.queue import Queue
+
+    failed = 0
+    engine = db.PROJECT.open(default=db.default_url())
+    queue = Queue(engine, models.JOBS)
+    with Session(engine) as s:
+        for path in args.files:
+            incoming = os.path.join(settings.recordings_dir(), ingest.FOUND, "incoming")
+            os.makedirs(incoming, exist_ok=True)
+            part = os.path.join(incoming, f"{uuid.uuid4().hex}.part")
+            shutil.copyfile(path, part)
+            try:
+                up = ingest.add_upload(s, queue, os.path.basename(path), part)
+            except ValueError as e:
+                print(f"  {e}", file=sys.stderr)
+                failed += 1
+                continue
+            print(f"  #{up.id} {up.name}: {up.seconds or 0:.0f} s, ingesting")
+            # Run jobs until this upload's own is finished: an older one queued first runs first (the queue is in
+            # order), and nothing left to claim means a server's worker holds it or it waits to be tried again.
+            done = queue.get(int(up.job.id)) if up.job else None
+            while done is not None and done.state not in FINISHED:
+                if queue.step({ingest.KIND: ingest.handler(lambda: engine)}) is None:
+                    break
+                done = queue.get(done.id)
+            out = ingest.get_upload(s, queue, up.id)
+            if done is None or done.state != "done":
+                why = "no job" if done is None else done.error or f"{done.state}; the server's worker will finish it"
+                print(f"  #{up.id} not finished: {why}", file=sys.stderr)
+                failed += 1
+                continue
+            print(
+                f"  #{up.id} {out.sentences} sentences: {out.kept} kept ({out.kept_seconds:.0f} s), "
+                f"{out.other_voice} someone else's, {out.retry} to check"
+            )
+    engine.dispose()
+    return 1 if failed else 0
 
 
 def cmd_manifest(args: argparse.Namespace) -> int:
@@ -178,6 +225,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(fn=cmd_pilot)
+    ig = sub.add_parser("ingest", help="bring in found recordings (any format): level, transcribe, cut, judge, keep")
+    ig.add_argument("files", nargs="+", metavar="FILE")
+    ig.set_defaults(fn=cmd_ingest)
     shared.add_set(sub, settings.SETTINGS)
     shared.add_serve(sub, run_server, default_port=8370)
     shared.add_openapi(sub, create_app)

@@ -205,6 +205,7 @@ def test_the_manifest_has_one_record_per_prompt_its_newest_take(db_session: Sess
             "noise_db": None,
             "speech_db": None,
         },
+        "found": None,
         "partition": "train",
     }
     assert (expr_rec["requested_style"]["category"], expr_rec["requested_style"]["label"]) == ("excited", expr.cue)

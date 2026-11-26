@@ -37,6 +37,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_jobs_api_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job Counts */
+        get: operations["job_counts_api_jobs_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job */
+        get: operations["get_job_api_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Job */
+        post: operations["cancel_job_api_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Job */
+        post: operations["retry_job_api_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/manifest.jsonl": {
         parameters: {
             query?: never;
@@ -278,6 +363,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Upload */
+        post: operations["post_upload_api_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Uploads Page */
+        get: operations["get_uploads_page_api_uploads_page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/uploads/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Upload */
+        get: operations["get_upload_api_uploads__upload_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Upload */
+        delete: operations["delete_upload_api_uploads__upload_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -354,6 +491,24 @@ export interface components {
             /** Total */
             total: number | null;
         };
+        /** Page[Task] */
+        Page_Task_: {
+            /** Items */
+            items: components["schemas"]["Task"][];
+            /** Next */
+            next: string | null;
+            /** Total */
+            total: number | null;
+        };
+        /** Page[UploadOut] */
+        Page_UploadOut_: {
+            /** Items */
+            items: components["schemas"]["UploadOut"][];
+            /** Next */
+            next: string | null;
+            /** Total */
+            total: number | null;
+        };
         /**
          * Problem
          * @description One reason a take should be recorded again, in words the speaker can act on.
@@ -363,23 +518,6 @@ export interface components {
             code: string;
             /** Sentence */
             sentence: string;
-        };
-        /**
-         * Progress
-         * @description How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`
-         *     count every take kept, retries included.
-         */
-        Progress: {
-            /** Prompts */
-            prompts: number;
-            /** Recorded */
-            recorded: number;
-            /** Seconds */
-            seconds: number;
-            /** Skipped */
-            skipped: number;
-            /** Takes */
-            takes: number;
         };
         /**
          * PromptOut
@@ -445,7 +583,7 @@ export interface components {
             consented: boolean;
             /** Max Take Seconds */
             max_take_seconds: number;
-            progress: components["schemas"]["Progress"];
+            progress: components["schemas"]["stratavoice__studio__Progress"];
             /** Queue */
             queue: components["schemas"]["PromptOut"][];
         };
@@ -515,6 +653,10 @@ export interface components {
             seconds: number;
             /** Size Bytes */
             size_bytes: number;
+            /** Source Start */
+            source_start: number | null;
+            /** Speaker Similarity */
+            speaker_similarity: number | null;
             /** Speech Db */
             speech_db: number | null;
             /** Speech End */
@@ -523,10 +665,48 @@ export interface components {
             speech_start: number | null;
             /** Transcript */
             transcript: string | null;
+            /** Upload Id */
+            upload_id: number | null;
             /** Verdict */
             verdict: string | null;
             /** Wer */
             wer: number | null;
+        };
+        /**
+         * Task
+         * @description A job or task row as an API answers it.
+         */
+        Task: {
+            /**
+             * Attempts
+             * @default 0
+             */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Domain */
+            domain: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number | string;
+            /** Kind */
+            kind: string;
+            progress: components["schemas"]["strata_python__contracts__Progress"] | null;
+            /** Result */
+            result: unknown;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "done" | "failed" | "cancelled";
         };
         /**
          * UnitOut
@@ -539,6 +719,43 @@ export interface components {
             example: string | null;
             /** Value */
             value: string;
+        };
+        /**
+         * UploadOut
+         * @description An upload and how far it has got: `job` is its ingest job (null for one whose job was pruned). Of its
+         *     `sentences`, `kept` count in the dataset (with `kept_seconds` of speech), `other_voice` were someone else and
+         *     `retry` had another problem (cut, unclear, noisy). `speaker_reference` is what voices were compared with: `studio`,
+         *     `upload` (the voice that speaks most here) or null (not checked).
+         */
+        UploadOut: {
+            /**
+             * Created
+             * Format: date-time
+             */
+            created: string;
+            /** Gain Db */
+            gain_db: number | null;
+            /** Id */
+            id: number;
+            job: components["schemas"]["Task"] | null;
+            /** Kept */
+            kept: number;
+            /** Kept Seconds */
+            kept_seconds: number;
+            /** Name */
+            name: string;
+            /** Other Voice */
+            other_voice: number;
+            /** Retry */
+            retry: number;
+            /** Seconds */
+            seconds: number | null;
+            /** Sentences */
+            sentences: number;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Speaker Reference */
+            speaker_reference: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -580,6 +797,45 @@ export interface components {
             waiting: number;
             /** Writer */
             writer: string | null;
+        };
+        /**
+         * Progress
+         * @description How far a task has got. `total` None means not known yet; `text` is the line a person reads ("Page 3 of 40").
+         */
+        strata_python__contracts__Progress: {
+            /** At */
+            at: string | null;
+            /**
+             * Done
+             * @default 0
+             */
+            done: number;
+            /** Stage */
+            stage: string | null;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /** Total */
+            total: number | null;
+        };
+        /**
+         * Progress
+         * @description How far through the queue the speaker is: `recorded` counts prompts with a usable take; `takes` and `seconds`
+         *     count every take kept, retries included.
+         */
+        stratavoice__studio__Progress: {
+            /** Prompts */
+            prompts: number;
+            /** Recorded */
+            recorded: number;
+            /** Seconds */
+            seconds: number;
+            /** Skipped */
+            skipped: number;
+            /** Takes */
+            takes: number;
         };
     };
     responses: never;
@@ -628,6 +884,156 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_jobs_api_jobs_get: {
+        parameters: {
+            query?: {
+                state?: ("queued" | "running" | "done" | "failed" | "cancelled")[] | null;
+                kind?: string | null;
+                domain?: string | null;
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_Task_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_counts_api_jobs_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
+                    };
+                };
+            };
+        };
+    };
+    get_job_api_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_job_api_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_job_api_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -936,6 +1342,7 @@ export interface operations {
             query?: {
                 after?: number | null;
                 limit?: number;
+                upload?: number | null;
             };
             header?: never;
             path?: never;
@@ -1103,6 +1510,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TakeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_upload_api_uploads_post: {
+        parameters: {
+            query: {
+                name: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_uploads_page_api_uploads_page_get: {
+        parameters: {
+            query?: {
+                after?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UploadOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_api_uploads__upload_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_upload_api_uploads__upload_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadOut"];
                 };
             };
             /** @description Validation Error */

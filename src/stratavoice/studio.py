@@ -10,7 +10,9 @@ earlier ones stay on disk until removed, because a master is never overwritten. 
 (`scoring.py`): a prompt whose takes were all judged `retry`, and not kept anyway, is back at the front of the queue,
 so the studio asks again at once. A take not judged yet, or `unchecked`, counts: the speaker is never held up by the
 models service. After the starter set come the prompts the writer generated (writer.py), in the order coverage.py
-ranks them, which it refreshes every few usable takes."""
+ranks them, which it refreshes every few usable takes. Sentences cut from an upload (ingest.py) are prompts and takes too,
+so the Takes screen, coverage and the manifest see them, but they never enter the queue and do not count in progress
+through it: they were said already."""
 
 import datetime
 import hashlib
@@ -32,6 +34,7 @@ LOCALE = "en-GB"  # the spec's first locale; one voice, one accent
 STYLE_VOCABULARY = "strata-voice-everyday-1"  # curriculum.STYLES; renamed if the list ever changes meaning
 DEVICE_MAX = 200
 MIN_TAKE_SECONDS = 0.3  # shorter than any prompt can be said in: a click on Record then Stop
+UPLOADED = "upload"  # Prompt.source of a sentence cut from an upload (the same as ingest.SOURCE)
 
 
 class NotConsented(ValueError):
@@ -90,6 +93,9 @@ class TakeOut(ApiModel):
     clipped: int | None
     speech_start: float | None
     speech_end: float | None
+    upload_id: int | None
+    source_start: float | None
+    speaker_similarity: float | None
 
 
 class Progress(ApiModel):
@@ -214,7 +220,9 @@ def _queue() -> Select[Prompt]:
     (a written prompt waits at `coverage.GENERATED_BASE` until it is ranked), so the order is total and a cursor holds."""
     recorded = select(Take.prompt_id).where(_usable())
     return (
-        select(Prompt).where(Prompt.skipped.is_(None), Prompt.id.not_in(recorded)).order_by(Prompt.position, Prompt.id)
+        select(Prompt)
+        .where(Prompt.skipped.is_(None), Prompt.source != UPLOADED, Prompt.id.not_in(recorded))
+        .order_by(Prompt.position, Prompt.id)
     )
 
 
@@ -248,9 +256,12 @@ def next_prompt(db: Session) -> PromptOut | None:
 
 
 def progress(db: Session) -> Progress:
-    total = db.scalar(select(func.count()).select_from(Prompt)) or 0
-    skipped = db.scalar(select(func.count()).select_from(Prompt).where(Prompt.skipped.is_not(None))) or 0
-    recorded = db.scalar(select(func.count(func.distinct(Take.prompt_id))).where(_usable())) or 0
+    studio_prompt = Prompt.source != UPLOADED
+    total = db.scalar(select(func.count()).select_from(Prompt).where(studio_prompt)) or 0
+    skipped = db.scalar(select(func.count()).select_from(Prompt).where(studio_prompt, Prompt.skipped.is_not(None))) or 0
+    recorded = (
+        db.scalar(select(func.count(func.distinct(Take.prompt_id))).where(_usable(), Take.upload_id.is_(None))) or 0
+    )
     takes = db.scalar(select(func.count()).select_from(Take)) or 0
     seconds = sum(f / r for f, r in db.execute(select(Take.frames, Take.sample_rate)))
     return Progress(prompts=total, recorded=recorded, skipped=skipped, takes=takes, seconds=round(seconds, 2))
@@ -298,6 +309,9 @@ def _take_out(t: Take, p: Prompt) -> TakeOut:
         clipped=t.clipped,
         speech_start=t.speech_start,
         speech_end=t.speech_end,
+        upload_id=t.upload_id,
+        source_start=t.source_start,
+        speaker_similarity=t.speaker_similarity,
     )
 
 
@@ -337,12 +351,19 @@ def add_take(db: Session, prompt_id: int, data: bytes, device: str | None = None
     return _take_out(t, p)
 
 
-def takes_page(db: Session, after: int | None = None, limit: int = 20) -> Page[TakeOut]:
+def takes_page(db: Session, after: int | None = None, limit: int = 20, upload: int | None = None) -> Page[TakeOut]:
     """One page of takes, newest first: those older than the one with id `after` (the last one the client holds).
-    A cursor, not an offset, so a take removed between pages cannot make the next page skip one."""
-    q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).order_by(Take.id.desc()).limit(limit + 1)
-    if after is not None:
-        q = q.where(Take.id < after)
+    A cursor, not an offset, so a take removed between pages cannot make the next page skip one. `upload` keeps the
+    sentences of one upload, in the order they were said."""
+    q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).limit(limit + 1)
+    if upload is not None:
+        q = q.where(Take.upload_id == upload).order_by(Take.id)
+        if after is not None:
+            q = q.where(Take.id > after)
+    else:
+        q = q.order_by(Take.id.desc())
+        if after is not None:
+            q = q.where(Take.id < after)
     rows = list(db.execute(q))
     items = [_take_out(t, p) for t, p in rows[:limit]]
     return Page[TakeOut](items=items, next=str(items[-1].id) if len(rows) > limit else None)
@@ -411,15 +432,17 @@ def remove_take(db: Session, take_id: int) -> TakeOut:
 
 def manifest(db: Session) -> Iterator[dict[str, Any]]:
     """The dataset as spec §5's JSON records, one per prompt's take in use (its newest usable one), in queue order: a
-    prompt whose takes were all judged `retry` is left out. `audio_uri` is relative to the recordings folder, or
-    absolute for a take written to an earlier one. `speech` is the crop in seconds into the file and `quality` the
-    verdict; both are null for a take not scored yet. An old free-talk take's text is its transcript."""
+        prompt whose takes were all judged `retry` is left out. `audio_uri` is relative to the recordings folder, or
+        absolute for a take written to an earlier one. `speech` is the crop in seconds into the file and `quality` the
+        verdict; both are null for a take not scored yet. An old free-talk take's text is its transcript. A sentence cut from an
+    upload is `source` "found", with `found` saying which upload and where in it (seconds into the original)."""
     newest = select(func.max(Take.id)).where(_usable()).group_by(Take.prompt_id)
     q = select(Take, Prompt).join(Prompt, Take.prompt_id == Prompt.id).where(Take.id.in_(newest))
     for t, p in db.execute(q.order_by(Prompt.position)):
+        found = t.upload_id is not None
         yield {
             "id": f"take_{t.id:06d}",
-            "source": "human",
+            "source": "found" if found else "human",
             "audio_uri": t.path if t.root in ("", settings.recordings_dir()) else _file(t),
             "sha256": t.sha256,
             "text": t.transcript if p.kind == curriculum.FREE_TALK else p.text,
@@ -430,7 +453,18 @@ def manifest(db: Session) -> Iterator[dict[str, Any]]:
             if p.style is None
             else {"vocabulary": STYLE_VOCABULARY, "category": p.style, "label": p.cue},
             "observed_style": {"review_status": "unverified"},
-            "elicitation": {"mode": "written_label" if p.cue else "plain_text", "demonstration_heard": False},
+            "elicitation": {
+                "mode": "found" if found else "written_label" if p.cue else "plain_text",
+                "demonstration_heard": False,
+            },
+            "found": None
+            if not found
+            else {
+                "upload": t.upload_id,
+                "start": t.source_start,
+                "end": t.source_end,
+                "speaker_similarity": t.speaker_similarity,
+            },
             "audio": {
                 "sample_rate": t.sample_rate,
                 "sample_width": t.sample_width,

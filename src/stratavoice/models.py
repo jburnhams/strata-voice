@@ -1,7 +1,9 @@
 """The app's records: SQLAlchemy models, migrated by Alembic (`src/stratavoice/migrations/`, declared in
 `src/stratavoice/strata-db.toml`).
 
-Two tables: the prompts the speaker is asked to read (or talk about), and the takes recorded for them. The audio itself
+Three tables of the app's own: the prompts the speaker is asked to read (or talk about), the takes recorded for them,
+and the recordings brought in on the Upload screen (ingest.py), whose sentences become takes too; plus strata-python's
+job queue (`jobs`), which runs each upload in the background. The audio itself
 is a file in the recordings folder (`settings.recordings_dir`), never in the database: masters are large, must be
 lossless and are handed to training tools as files. A take row says where its file is and what it holds.
 
@@ -12,15 +14,44 @@ on the shared Postgres; see strata-python's README, "Database"."""
 
 import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, Text, false
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, MetaData, String, Text, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 from strata_python.db import NAMING_CONVENTION
+from strata_python.tasks.queue import jobs_table
 
 
 class Base(MappedAsDataclass, DeclarativeBase):
     # Written out rather than `make_base()`: ty refuses a function's result as a base class. The shared naming convention
     # gives every constraint the same name on every app and engine, so migrations never drift on a name.
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class Upload(Base):
+    """A recording the speaker brought in (an old voice note, a talk, a video): any format ffmpeg reads, kept as it came
+    at `path` under `root` (the recordings folder then, as for a take), and processed by the `ingest` job `job_id`
+    (ingest.py): decoded to one lossless mono WAV at one gain (`normalized`, `gain_db`), transcribed, cut into
+    sentences, each a take of its own (`Take.upload_id`). `speaker_reference` says what each sentence's voice was
+    compared with: `studio` (the speaker's own studio takes), `upload` (no studio takes yet: the voice that speaks most
+    here) or null (strata-models could not measure voices, so every sentence was kept). `sha256` refuses the same file
+    twice."""
+
+    __tablename__ = "uploads"
+    __table_args__ = {"sqlite_autoincrement": True}  # noqa: RUF012 - SQLAlchemy reads it from the class
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
+    name: Mapped[str] = mapped_column(String(300))
+    path: Mapped[str] = mapped_column(String(400))
+    root: Mapped[str] = mapped_column(String(500))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    seconds: Mapped[float | None] = mapped_column(Float, default=None)
+    job_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    normalized: Mapped[str | None] = mapped_column(String(400), default=None)
+    gain_db: Mapped[float | None] = mapped_column(Float, default=None)
+    transcript: Mapped[str | None] = mapped_column(Text, default=None)
+    asr_model: Mapped[str | None] = mapped_column(String(100), default=None)
+    speaker_reference: Mapped[str | None] = mapped_column(String(10), default=None)
 
 
 class Prompt(Base):
@@ -92,3 +123,14 @@ class Take(Base):
     speech_end: Mapped[float | None] = mapped_column(Float, default=None)
     # The speaker kept a take that was judged `retry` (a name the recogniser does not know, a deliberate cough).
     accepted: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # A sentence cut from an upload (ingest.py): which one, where it was in the recording (seconds into the original),
+    # and how like the speaker its voice is (cosine similarity of speaker embeddings, null when not measured).
+    upload_id: Mapped[int | None] = mapped_column(ForeignKey("uploads.id"), default=None, index=True)
+    source_start: Mapped[float | None] = mapped_column(Float, default=None)
+    source_end: Mapped[float | None] = mapped_column(Float, default=None)
+    speaker_similarity: Mapped[float | None] = mapped_column(Float, default=None)
+
+
+#: strata-python's job queue, which runs each upload's `ingest` job (in the server's worker; `strata-voice ingest` in
+#: the CLI). Part of the metadata, so the migrations make it.
+JOBS = jobs_table(Base.metadata)

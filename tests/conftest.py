@@ -24,8 +24,9 @@ def models(fake_models: FakeModels) -> FakeModels:
 def client(db_env: str, models: FakeModels) -> Iterator[TestClient]:
     """The HTTP API on a fresh migrated test database, with strata-models down (`models`). Used as a context manager so
     the server's lifespan runs, as under uvicorn: the engine is disposed when the test ends (a SQLite file left open
-    cannot be removed on Windows)."""
+    cannot be removed on Windows). The ingest worker is off: a test runs an upload's job itself
+    (`c.app.state.queue().step(...)`, see tests/unit/test_ingest.py), so it sees each stage."""
     from stratavoice.server.app import create_app
 
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(worker=False)) as c:
         yield c

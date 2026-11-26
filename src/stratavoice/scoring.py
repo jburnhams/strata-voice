@@ -22,6 +22,11 @@ A take with any problem is `retry`, and the studio asks for another at once; the
 past `ASR_WAIT_SECONDS`, the take is `unchecked`: kept and counted, never refused for the service's sake, and
 `strata-voice score` checks it later (which can send its prompt back to the queue).
 
+A sentence cut from an upload (ingest.py) is judged the same way, its prompt text being what Whisper heard in the whole
+recording: heard again on its own, a sentence whose words come out differently was cut through a word or is unclear.
+It has one more check, **voice**: its speaker embedding against the speaker's (`speaker_similarity`, measured once by
+ingest.py and kept on the take, so scoring again keeps it); under `MIN_SPEAKER_SIMILARITY` it is someone else.
+
 The thresholds are first guesses from the usual figures for recorded speech; step 4 (the pilot) tunes them."""
 
 import datetime
@@ -57,6 +62,9 @@ MAX_WER = 0.1
 #: before it; the ends of words decay after. Padded so the crop never clips a word.
 PAD_BEFORE = 0.15
 PAD_AFTER = 0.25
+#: ECAPA's cosine similarity between two stretches of one voice is usually 0.5 to 0.8, of two voices under 0.3; a found
+#: recording's room and microphone differ from the studio's, which lowers the first. A first guess, to tune on uploads.
+MIN_SPEAKER_SIMILARITY = 0.4
 
 GOOD, RETRY, UNCHECKED = "good", "retry", "unchecked"
 
@@ -93,8 +101,26 @@ def problems(t: Take, p: Prompt) -> list[Problem]:
                 f"The room is noisy: between words it sits at {t.noise_db:.0f}\u00a0dBFS. "
                 "Find a quieter spot or turn off what hums."
             )
+        elif code == "speaker":
+            sentence = (
+                f"It sounds like someone else: its voice matches yours by {t.speaker_similarity:.2f}, and yours match "
+                f"by {MIN_SPEAKER_SIMILARITY:.2f} or more. Keep it anyway if it is you."
+            )
         elif code == "no_speech":
-            sentence = "No words were heard. Say the prompt after pressing Record, then press Stop."
+            sentence = (
+                "No words were heard in it once it was cut out of the recording."
+                if t.upload_id is not None
+                else "No words were heard. Say the prompt after pressing Record, then press Stop."
+            )
+        elif t.upload_id is not None:  # "words" on a sentence of an upload
+            missed = find(p.text, (t.transcript or "").split()).errors.missed
+            heard = f" It heard \u201c{t.transcript}\u201d." if t.transcript else ""
+            sentence = (
+                f"Heard on its own, some words were not what the whole recording said: {_quote(missed)}. "
+                f"A word may be cut off or unclear.{heard}"
+                if missed
+                else f"Heard on its own, it has more words than the whole recording gave it.{heard}"
+            )
         else:  # "words", the last code score() writes
             missed = find(p.text, (t.transcript or "").split()).errors.missed
             heard = f" It heard \u201c{t.transcript}\u201d." if t.transcript else ""
@@ -118,15 +144,18 @@ def level_problems(levels: WavLevels) -> list[str]:
     return found
 
 
-def transcribe(path: str) -> tuple[sm.Transcript, str | None] | None:
-    """The take's transcript and the model that made it, or None when strata-models cannot answer now."""
+def transcribe(
+    path: str, priority: sm.Priority = "high", wait: float = ASR_WAIT_SECONDS
+) -> tuple[sm.Transcript, str | None] | None:
+    """The take's transcript and the model that made it, or None when strata-models cannot answer now. `high` by
+    default: someone is waiting at the microphone; an upload's sentences are judged in the background, `normal`."""
     try:
         result, made = sm.run_with_provenance(
             ASR_ROLE,
             {"path": path, "language": LANGUAGE, "word_timestamps": True},
             APP,
-            priority="high",  # someone is waiting at the microphone
-            timeout=ASR_WAIT_SECONDS,
+            priority=priority,
+            timeout=wait,
         )
     except (sm.Unavailable, TimeoutError, sm.JobFailed) as e:
         log.warning("take not transcribed: %s", e)
@@ -134,12 +163,16 @@ def transcribe(path: str) -> tuple[sm.Transcript, str | None] | None:
     return sm.Transcript.from_json(result), made.model
 
 
-def score(db: Session, t: Take, p: Prompt, path: str) -> None:
+def score(
+    db: Session, t: Take, p: Prompt, path: str, priority: sm.Priority = "high", wait: float = ASR_WAIT_SECONDS
+) -> None:
     """Judge the take at `path` and store the verdict on its row (committed). Scoring again replaces the old one."""
     levels = measure(path)
     found = level_problems(levels)
+    if t.speaker_similarity is not None and t.speaker_similarity < MIN_SPEAKER_SIMILARITY:
+        found.append("speaker")
     t.peak_db, t.noise_db, t.speech_db, t.clipped = levels.peak_db, levels.noise_db, levels.speech_db, levels.clipped
-    heard = transcribe(path)
+    heard = transcribe(path, priority, wait)
     t.transcript = t.asr_model = t.wer = t.speech_start = t.speech_end = None
     if heard is not None:
         transcript, t.asr_model = heard

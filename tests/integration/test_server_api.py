@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from strata_python.testing import CliResult, FakeModels, sine_wav
-from takes import heard, speech
+from takes import found_heard, found_voices, heard, recording, speech
 
 Cli = Callable[..., CliResult]  # the `cli` fixture (tests/integration/conftest.py)
 
@@ -78,3 +78,33 @@ def test_a_reload_on_any_screen_gets_the_app(server: str):
     with urllib.request.urlopen(server + "/settings?tab=appearance", timeout=10) as r:  # noqa: S310 - loopback
         assert r.status == 200
         assert '<base href="./">' in r.read().decode()
+
+
+def test_a_recording_brought_in_over_http_is_ingested_by_the_servers_worker(
+    server: str, cli: Cli, models: FakeModels, tmp_path: Any
+):
+    import time
+
+    from stratavoice import db
+
+    assert call(server, "PUT", "/api/settings", {"consented_on": "2026-11-23"})[0] == 200
+    models.down = False
+    models.results["transcribe"] = found_heard(db.session)
+    models.results["speaker-embedding"] = found_voices
+    with open(recording(str(tmp_path / "talk.flac")), "rb") as f:
+        data = f.read()
+    req = urllib.request.Request(server + "/api/uploads?name=talk.flac", data=data, method="POST")  # noqa: S310 - loopback
+    with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 - loopback
+        up = json.loads(r.read())
+    deadline = time.monotonic() + 60
+    while (got := call(server, "GET", f"/api/uploads/{up['id']}")[1])["job"]["state"] != "done":
+        assert time.monotonic() < deadline, got
+        time.sleep(0.2)
+    assert (got["sentences"], got["kept"], got["other_voice"]) == (3, 2, 1)
+    assert cli("takes").stdout.count("retry") == 1
+    found = [json.loads(line) for line in cli("manifest").stdout.splitlines()]
+    assert [r["source"] for r in found] == ["found", "found"]
+    models.down = True
+    again = cli("ingest", recording(str(tmp_path / "again.flac"), amplitude=0.07), check=False)
+    assert again.code == 1
+    assert "not finished" in again.stderr  # strata-models down: queued to try again, for the server's worker

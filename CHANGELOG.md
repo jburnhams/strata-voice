@@ -2,6 +2,42 @@
 
 Newest first, grouped by day. One entry per change, in the same commit or PR as the change.
 
+## 2026-11-26
+
+**strata-voice: bring in a recording (branch `claude/project-thread-vao1r7`)**
+Jonathan found a recording of himself and asked for an upload section that takes an audio file of any format and then normalises, transcribes, extracts the useful bits and ingests them. Only his voice should be kept, so each sentence is checked against his studio takes. That needed a speaker-embedding role in strata-models (strata-models #136) and its client in strata-python (strata-python #87, released as 0.2.23).
+- `src/stratavoice/ingest.py` (**new**): `add_upload` refuses a file with no consent, an empty file, a duplicate (by SHA-256) and a file ffprobe cannot read or that has no audio. It keeps the original under `recordings_dir/found/upload_NNNNNN/` and queues an `ingest` job. `process` runs the stages, reporting progress:
+  - levels the file with one gain to a -1 dBFS peak, at most +30 dB, as a 24-bit mono WAV;
+  - transcribes it (vad on), waiting and retrying while strata-models is down;
+  - cuts sentences (`sentences`: punctuation, gaps over 0.8 s, the longest pause of anything over 15 s, padding never past half way to a neighbour);
+  - embeds each sentence and the reference takes, then compares them (`voices`);
+  - judges each sentence and re-ranks coverage.
+
+  It also adds `uploads_page`, `get_upload` and `remove_upload`, which cancels the job and deletes the files and rows.
+- `src/stratavoice/models.py`, `migrations/20261126_2d3b89867a16_uploads.py` (**new**): strata-python's `jobs` table, `uploads`, and on a take `upload_id`, `source_start`, `source_end` and `speaker_similarity`. The takes table keeps AUTOINCREMENT through SQLite's batch copy, so a take id is never reused.
+- `src/stratavoice/scoring.py`: `MIN_SPEAKER_SIMILARITY = 0.4` and a `speaker` problem. A found sentence's "no speech" and "words" problems are worded for an upload. `transcribe` and `score` take a priority and a wait, so a long job does not jump the studio's takes.
+- `src/stratavoice/studio.py`: `UPLOADED` prompts stay out of the queue and the studio's progress. `takes_page(upload=)` lists one upload's sentences in the order said, and `TakeOut` gains the upload fields. The manifest gives a found sentence elicitation mode `found` and a `found` record (its upload and place). `pilot.py` reads studio takes only.
+- `src/stratavoice/server/app.py`: `POST /api/uploads?name=` (the body streamed to disk under a size limit), `GET /api/uploads/page`, `GET`/`DELETE /api/uploads/{id}`, strata-python's `/api/jobs` routes, and `upload` on the takes page. The lifespan starts the queue's worker (`create_app(worker=False)` for the unit tests).
+- `src/stratavoice/cli.py`: `ingest FILE...` brings each in and runs jobs in the foreground until its own job is finished (an older job due first runs first). It exits 1 if any file is refused, fails, or is left for the server's worker (review, Codex).
+- The levelled WAV is ffmpeg's raw 24-bit samples under Python's own WAV header: ffmpeg's muxer gives 24-bit audio a WAVE_FORMAT_EXTENSIBLE header, which `wave` reads only from Python 3.12, so ingest failed on 3.11 (review, Codex; CI's 3.11 leg).
+- `pyproject.toml`, `uv.lock`: strata-python `>=0.2.23` (the first release with `clients.models.speaker_embeddings`, strata-python #87). Until it was released the branch pinned #87's commit.
+- `.github/workflows/unit.yml`, `integration.yml`: ffmpeg on every runner (the same step as strata-python's CI), checked before the tests.
+- Web:
+  - `src/screens/UploadScreen.tsx` (**new**): drop or choose recordings (`useFileIntake`, with the server's own refusal shown on the file), each job while it runs (`useJob` → `JobStatus`, with Stop), and the paged list of what each gave, with Sentences of, Try again and Remove (behind a confirm, as it deletes files).
+  - The Brought in list scrolls with the page (`InfiniteList scroll="page"`), not as virtual rows: a row's height depends on how its summary wraps, and virtual rows placed by an estimate before they were measured drew a gap that came and went (the Every state dark screenshot differed on CI).
+  - `routes.tsx` and `Layout.tsx`: the Upload nav item.
+  - `TakesScreen.tsx`: `?upload=` lists one upload's sentences, with Every take to go back and Keep anyway on a sentence judged someone else's.
+  - `api.ts`: `uploadWord`, `uploadSummary`, `activeJob` and `postUpload`; a found retry reads "Someone else" or "Left out".
+  - Mocks: upload fixtures (`kitchenUpload` with its sentences, `talkUpload` running, `failedUpload`), handlers for uploads and jobs, and the `uploads*` and `uploadRefused` states.
+  - Stories: `stories/upload.stories.tsx` (**new**) and Takes `FromAnUpload`.
+  - Visual config: the `upload` route, ready and with the remove dialog open. Baselines are rewritten by `update-visual-baselines.yml`.
+- Tests:
+  - `tests/unit/test_ingest.py` (**new**) runs a real ffmpeg on a three-sentence FLAC with one sentence in another voice.
+  - `test_server.py`, `test_cli.py`, `test_scoring.py` and `test_studio.py` cover the new routes, the command, the speaker problem and the manifest's `found`.
+  - The integration `test_server_api.py` has the server's own worker ingest a recording.
+  - Web: `tests/integration/UploadScreen.test.tsx` (**new**) and `tests/unit/logic.test.ts` (upload words and summaries).
+- Docs: README (ffmpeg, `ingest`), AGENTS, overview, implementation-plan (4b), progress, deploying (ffmpeg, the speaker venv, the queue), and the test ledgers.
+
 ## 2026-11-25
 
 **strata-voice: the hands-free studio (branch `claude/project-thread-cvjjmf`)**

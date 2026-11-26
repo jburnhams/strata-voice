@@ -1,5 +1,15 @@
 # Progress log
 
+## 2026-11-26: bringing in a recording
+
+- Asked for: "i found a recording of me. can we have an upload section to the app? this should take an audio file of any format and then process - normalize, transcribe, extract useful bits, ingest". Step 4b of the plan.
+- Whose voice: a found recording has other people in it, so each sentence is embedded with ECAPA (SpeechBrain's VoxCeleb model, strata-models' new `speaker-embedding` role) and compared by cosine with a reference. Diarisation was not used. The question is "is this sentence the speaker", not "who spoke when", and a sentence-level check against known studio takes answers that directly, with no clustering to tune. The reference is the mean of up to 30 good studio takes. Before there are any, it is the recording's dominant voice: the mean of every sentence weighted by length, then the mean of the sentences within the threshold of that, twice. The limit (0.4) is a first guess from ECAPA's usual same-speaker range, to tune on a real recording.
+- Normalising is one gain for the whole file to a -1 dBFS peak (at most +30 dB), not loudness per sentence. The scorer's level checks then read the recording as it was, and a quiet room stays quiet.
+- A sentence boundary is the transcript's own punctuation, or a gap of more than 0.8 s between words. Anything longer than 15 s is split at its longest pause, because the studio's takes are short and a voice model trains on short clips. Under 1 s or two words is dropped. Each cut keeps a little air either side, but never past half way to the next sentence.
+- The work runs on strata-python's job queue, in the app's own database, so an hour of audio does not hold a request, a restart resumes it, and strata-models being down is a wait (RetryLater, every 10 minutes, 12 tries) rather than a failure. The job polls are strata-react's `useJob` and `JobStatus`.
+- Sentences are takes with their own prompt (kind `found`, source `upload`), so the Takes screen, the scorer, coverage and the manifest treat them like studio takes. The queue and the studio's progress count studio prompts only.
+
+
 ## 2026-11-25: the hands-free studio
 
 - Asked for: "an auto studio mode where it is always listening and auto captures the relevant speech and when happy moves on ... infinite scroll of prompts and process async. if unhappy with a recording then put it back in the queue".

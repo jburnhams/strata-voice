@@ -16,6 +16,12 @@ From strata-python: GET /api/health, GET and PUT /api/settings (consent is the `
     POST /api/takes/{id}/accept           keep a take judged `retry` anyway; DELETE takes that back
     DELETE /api/takes/{id}                remove a take and its file
     GET  /api/manifest.jsonl              the dataset manifest (spec §5 records), one take per prompt
+    POST /api/uploads?name=               bring in a recording (the body is the file, any format): kept, then ingested
+    GET  /api/uploads/page?after=&limit=  one page of uploads, newest first, each with its job and what it gave
+    GET  /api/uploads/{id}                one upload
+    DELETE /api/uploads/{id}              remove an upload, its files and every take cut from it
+    GET  /api/takes/page?upload=          the sentences of one upload, in the order said
+    /api/jobs...                          strata-python's queue routes (ingest jobs: progress, cancel, retry)
     GET  /api/coverage                    what the recordings cover: phonemes, pairs, stress, length, sentence, style
     POST /api/prompts/write               have the writer add a batch of prompts ({count}), then rank the queue
 
@@ -25,9 +31,11 @@ plain stand-in `landing.html`), so a reload or a shared link to /takes opens tha
 The microphone needs a secure page: browsers give `getUserMedia` only to https:// or http://localhost. Behind a
 reverse proxy on plain http the studio cannot record; see docs/deploying.md."""
 
+import contextlib
 import os
-from collections.abc import Sequence
-from typing import Annotated
+import uuid
+from collections.abc import AsyncGenerator, Sequence
+from typing import Annotated, Any
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -36,19 +44,32 @@ from starlette.concurrency import run_in_threadpool
 from strata_python import web
 from strata_python.contracts import ApiModel, Page
 from strata_python.db.web import DbSession, add_database
+from strata_python.tasks.queue import Queue, Worker
+from strata_python.tasks.web import add_jobs
 
-from stratavoice import __version__, coverage, db, settings, studio, system, writer
+from stratavoice import __version__, coverage, db, ingest, models, settings, studio, system, writer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
 LANDING = os.path.join(HERE, "landing.html")
 COMMIT = web.source_commit(__file__)  # None when installed from a wheel
 MAX_UPLOAD = 64_000_000  # 300 s (the most `max_take_seconds` allows) of 24-bit 48 kHz mono is 43 MB
+# Each failure of an ingest job is tried again; strata-models being down is one (ingest.MODELS_DOWN_RETRY_SECONDS
+# apart), so this is how long an upload waits for it: two hours. Then Try again on the Upload screen.
+INGEST_RETRIES = 12
 
 # A take is posted as the WAV itself, not JSON or a multipart form: no base64 inflation and no form parser. The
 # schema says so here, since FastAPI cannot infer a body it does not parse.
 WAV_BODY = {
     "requestBody": {"required": True, "content": {"audio/wav": {"schema": {"type": "string", "format": "binary"}}}}
+}
+
+# A recording brought in is posted as the file itself, whatever its type (ffprobe tells, not the header).
+FILE_BODY = {
+    "requestBody": {
+        "required": True,
+        "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
+    }
 }
 
 
@@ -58,13 +79,41 @@ class WriteIn(ApiModel):
     count: int = writer.DEFAULT_COUNT
 
 
-def create_app() -> FastAPI:
+def create_app(worker: bool = True) -> FastAPI:
+    """The app. `worker=False` leaves the ingest jobs queued for the caller to run (`queue.step`): the unit tests, which
+    run each job where they can see it, not on a thread of the server's."""
     app = web.base_app("strata-voice", __version__, settings.SETTINGS, commit=COMMIT)
     # A refused take is a ValueError (400) and a missing prompt or take a KeyError (404): no try/except in the routes.
     # The prompt writer ran but gave nothing usable: the models service's fault, a 502 (not running is a 503).
     web.add_error_handlers(app, {writer.WriterFailed: 502})
     # Opened and migrated on the first request that needs it.
     records = add_database(app, db.PROJECT, default=db.default_url)
+    queues: list[Queue] = []
+
+    def queue() -> Queue:
+        # Made on first use: the database is opened lazily too. One job at a time: each holds strata-models' GPU.
+        if not queues:
+            queues.append(Queue(records.engine(), models.JOBS, retries=INGEST_RETRIES))
+        return queues[0]
+
+    app.state.queue = queue
+    inner = app.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def lifespan(a: Any) -> AsyncGenerator[Any]:
+        # Threads, not job processes (isolate=False): an ingest job mostly waits on ffmpeg and strata-models, and on
+        # the server's own engine it needs no second database setup. Cancel and shutdown reach it through `stopping`.
+        running = (
+            Worker(queue(), {ingest.KIND: ingest.handler(records.engine)}, isolate=False).start() if worker else None
+        )
+        try:
+            async with inner(a) as state:
+                yield state
+        finally:
+            if running is not None:
+                await run_in_threadpool(running.stop, 10.0)
+
+    app.router.lifespan_context = lifespan
 
     def numbers() -> dict[str, object]:
         with Session(records.engine()) as s:
@@ -114,9 +163,12 @@ def create_app() -> FastAPI:
 
     @app.get("/api/takes/page")
     def get_takes_page(
-        s: DbSession, after: int | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 20
+        s: DbSession,
+        after: int | None = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 20,
+        upload: int | None = None,
     ) -> Page[studio.TakeOut]:
-        return studio.takes_page(s, after, limit)
+        return studio.takes_page(s, after, limit, upload)
 
     @app.get("/api/takes/{take_id}/audio", response_class=FileResponse)
     def get_take_audio(take_id: int, s: DbSession) -> FileResponse:
@@ -153,6 +205,44 @@ def create_app() -> FastAPI:
         body = "".join(studio.manifest_line(r) for r in studio.manifest(s))
         return PlainTextResponse(body, media_type="application/x-ndjson")
 
+    @app.post("/api/uploads", openapi_extra=FILE_BODY)
+    async def post_upload(request: Request, s: DbSession, name: str) -> ingest.UploadOut:
+        size = int(request.headers.get("content-length") or 0)
+        limit = ingest.MAX_UPLOAD_BYTES
+        if size > limit:
+            raise ValueError(f"{name} is {size // 1_000_000} MB; the most accepted is {limit // 1_000_000} MB.")
+        # Streamed to a file beside where it will be kept (the same disk, so keeping it is a rename), never held whole.
+        incoming = os.path.join(settings.recordings_dir(), ingest.FOUND, "incoming")
+        os.makedirs(incoming, exist_ok=True)
+        part = os.path.join(incoming, f"{uuid.uuid4().hex}.part")
+        written = 0
+        try:
+            with open(part, "wb") as f:
+                async for chunk in request.stream():
+                    written += len(chunk)
+                    if written > limit:
+                        raise ValueError(f"{name} is over {limit // 1_000_000} MB, the most accepted.")
+                    f.write(chunk)
+        except BaseException:
+            os.remove(part)
+            raise
+        return await run_in_threadpool(ingest.add_upload, s, queue(), name, part)
+
+    @app.get("/api/uploads/page")
+    def get_uploads_page(
+        s: DbSession, after: int | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 20
+    ) -> Page[ingest.UploadOut]:
+        return ingest.uploads_page(s, queue(), after, limit)
+
+    @app.get("/api/uploads/{upload_id}")
+    def get_upload(upload_id: int, s: DbSession) -> ingest.UploadOut:
+        return ingest.get_upload(s, queue(), upload_id)
+
+    @app.delete("/api/uploads/{upload_id}")
+    def delete_upload(upload_id: int, s: DbSession) -> ingest.UploadOut:
+        return ingest.remove_upload(s, queue(), upload_id)
+
+    add_jobs(app, queue)
     web.add_web(app, STATIC, LANDING)  # last: its catch-all serves the web app at every other path
     return app
 
