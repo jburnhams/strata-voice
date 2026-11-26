@@ -18,7 +18,8 @@ Jonathan found a recording of himself and asked for an upload section that takes
 - `src/stratavoice/scoring.py`: `MIN_SPEAKER_SIMILARITY = 0.4` and a `speaker` problem. A found sentence's "no speech" and "words" problems are worded for an upload. `transcribe` and `score` take a priority and a wait, so a long job does not jump the studio's takes.
 - `src/stratavoice/studio.py`: `UPLOADED` prompts stay out of the queue and the studio's progress. `takes_page(upload=)` lists one upload's sentences in the order said, and `TakeOut` gains the upload fields. The manifest gives a found sentence elicitation mode `found` and a `found` record (its upload and place). `pilot.py` reads studio takes only.
 - `src/stratavoice/server/app.py`: `POST /api/uploads?name=` (the body streamed to disk under a size limit), `GET /api/uploads/page`, `GET`/`DELETE /api/uploads/{id}`, strata-python's `/api/jobs` routes, and `upload` on the takes page. The lifespan starts the queue's worker (`create_app(worker=False)` for the unit tests).
-- `src/stratavoice/cli.py`: `ingest FILE...` brings each in and runs its job in the foreground. It exits 1 if any file is refused or fails.
+- `src/stratavoice/cli.py`: `ingest FILE...` brings each in and runs jobs in the foreground until its own job is finished (an older job due first runs first). It exits 1 if any file is refused, fails, or is left for the server's worker (review, Codex).
+- The levelled WAV is ffmpeg's raw 24-bit samples under Python's own WAV header: ffmpeg's muxer gives 24-bit audio a WAVE_FORMAT_EXTENSIBLE header, which `wave` reads only from Python 3.12, so ingest failed on 3.11 (review, Codex; CI's 3.11 leg).
 - `pyproject.toml`, `uv.lock`: `[tool.uv.sources]` pins strata-python to PR #87's commit (`clients.models.speaker_embeddings`). Drop it at the next release.
 - `.github/workflows/unit.yml`, `integration.yml`: ffmpeg on every runner (the same step as strata-python's CI), checked before the tests.
 - Web:

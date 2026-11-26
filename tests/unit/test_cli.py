@@ -154,6 +154,8 @@ def test_ingest_brings_in_files_and_runs_them_here(
 ):
     from sqlalchemy import create_engine
 
+    from stratavoice import models as models_mod
+
     talk = recording(str(tmp_path / "talk.flac"))
     assert cli.main(["ingest", talk]) == 1  # not consented
     assert "Agree to be recorded" in capsys.readouterr().err
@@ -165,9 +167,14 @@ def test_ingest_brings_in_files_and_runs_them_here(
     models.down = False
     models.results["transcribe"] = found_heard(lambda: Session(engine))
     models.results["speaker-embedding"] = found_voices
+    with engine.begin() as c:  # the first upload's retry is due now, so it is claimed before the new one
+        c.execute(models_mod.JOBS.update().values(run_after=None))
     other = recording(str(tmp_path / "other.flac"), amplitude=0.07)
-    assert cli.main(["ingest", other]) == 0
+    assert cli.main(["ingest", other]) == 0  # the older job runs first, then this one: it waits for its own
     out = capsys.readouterr().out
-    assert "3 sentences: 2 kept" in out
+    assert "#2 other.flac" in out
+    assert "#2 3 sentences: 2 kept" in out
     assert "1 someone else's" in out
+    with engine.begin() as c:
+        assert sorted(r.state for r in c.execute(models_mod.JOBS.select())) == ["done", "done"]
     engine.dispose()

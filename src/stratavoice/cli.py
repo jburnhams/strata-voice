@@ -76,6 +76,7 @@ def cmd_score(args: argparse.Namespace) -> int:
 def cmd_ingest(args: argparse.Namespace) -> int:
     """Bring in each file (a copy: the file stays where it is), then run its ingest job here, now."""
     from sqlalchemy.orm import Session
+    from strata_python.contracts import FINISHED
     from strata_python.tasks.queue import Queue
 
     failed = 0
@@ -94,11 +95,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 failed += 1
                 continue
             print(f"  #{up.id} {up.name}: {up.seconds or 0:.0f} s, ingesting")
-            job = queue.step({ingest.KIND: ingest.handler(lambda: engine)})
-            done = None if job is None else queue.get(job.id)
+            # Run jobs until this upload's own is finished: an older one queued first runs first (the queue is in
+            # order), and nothing left to claim means a server's worker holds it or it waits to be tried again.
+            done = queue.get(int(up.job.id)) if up.job else None
+            while done is not None and done.state not in FINISHED:
+                if queue.step({ingest.KIND: ingest.handler(lambda: engine)}) is None:
+                    break
+                done = queue.get(done.id)
             out = ingest.get_upload(s, queue, up.id)
             if done is None or done.state != "done":
-                print(f"  #{up.id} not finished: {done.error if done else 'no job'}", file=sys.stderr)
+                why = "no job" if done is None else done.error or f"{done.state}; the server's worker will finish it"
+                print(f"  #{up.id} not finished: {why}", file=sys.stderr)
                 failed += 1
                 continue
             print(

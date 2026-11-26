@@ -276,24 +276,31 @@ def level(src: str, out: str, source_rate: int | None) -> float:
     rate = min(source_rate or MAX_RATE, MAX_RATE)
     gain = min(TARGET_PEAK_DB - _peak_db(src, rate), MAX_GAIN_DB)
     tmp = out + ".part.wav"
-    media.ffmpeg(
-        [
-            "-i",
-            src,
-            "-vn",
-            "-map",
-            "0:a:0",
-            "-ac",
-            "1",
-            "-ar",
-            str(rate),
-            "-af",
-            f"volume={gain:.2f}dB",
-            "-c:a",
-            "pcm_s24le",
-            tmp,
-        ]
-    )
+    # Raw samples written under Python's own WAV header: ffmpeg's wav muxer gives 24-bit audio a WAVE_FORMAT_EXTENSIBLE
+    # header, which the wave module (here, in _cut, and strata_python.wav) reads only from Python 3.12.
+    with wave.open(tmp, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(3)
+        w.setframerate(rate)
+        media.ffmpeg(
+            [
+                "-i",
+                src,
+                "-vn",
+                "-map",
+                "0:a:0",
+                "-ac",
+                "1",
+                "-ar",
+                str(rate),
+                "-af",
+                f"volume={gain:.2f}dB",
+                "-f",
+                "s24le",
+                "-",
+            ],
+            sink=w.writeframesraw,
+        )
     os.replace(tmp, out)
     return round(gain, 2)
 
