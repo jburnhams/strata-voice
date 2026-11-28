@@ -13,7 +13,7 @@ export const defaultSettings: Settings = {
   writing_source: 'unified.my_writing',
   writing_context: 'unified.messages_all',
   writing_emails: 'unified.emails_all',
-  assistant_since: '2022-11-30',
+  assistant_since: '',
 }
 
 const seeds: [string, string, string, string | null, string, string | null][] = [

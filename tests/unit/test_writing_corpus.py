@@ -167,10 +167,7 @@ def test_trivial_copies_assisted_and_the_sample(
     assert all(w.words == len(w.text.split()) or w.trivial or "?" in w.text for w in got[2:])
 
 
-def test_no_assistant_date_marks_nothing(
-    db_session: Session, writing_source: Source, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("STRATAVOICE_ASSISTANT_SINCE", "")
+def test_no_assistant_date_marks_nothing(db_session: Session, writing_source: Source) -> None:
     writing_source.mine(LONG, at(0, days=5000))
     build(db_session, writing_source)
     assert [w.assisted for w in rows(db_session)] == [False]

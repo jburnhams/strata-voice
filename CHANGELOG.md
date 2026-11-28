@@ -4,6 +4,12 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 ## 2026-11-28
 
+**strata-voice: nothing marked assisted by default (branch `claude/project-thread-l0qkez`)**
+The trial build on the live view marked everything since 2022-11-30 as possibly written with AI help. Jonathan: his email, texts and chats had little AI help ("i've mostly used it for coding"), so the default now marks nothing. This corrects the earlier entry below, which gave 2022-11-30 as the default. He is happy for personal details to go to a cloud model, just not into GitHub, so nothing is masked. Rejoining wrapped mail is #10, measured on the live view, rather than a second version here.
+- `src/stratavoice/settings.py`: `assistant_since` defaults to blank; a day can still be set.
+- `tests/unit/test_writing_api.py`, `test_writing_corpus.py`: the blank default, and a set day still read.
+- `web/src/mocks/fixtures.ts`: the settings fixture's blank date. `docs/written-voice.md`: the default and why.
+
 **strata-voice: the written voice's corpus (branch `claude/project-thread-l0qkez`)**
 Step 1 of the written voice plan. Jonathan asked to harvest every source (Facebook Messenger, WhatsApp, email, Google Hangouts), join consecutive chat messages and ignore trivial ones ("can't get much sense of voice from 'yep, see you soon'"), and for one view of just his sent emails and messages. That view is strata-takeout's `unified.my_writing` (strata-takeout #33), so strata-voice reads rows rather than parsing exports, and holds no addresses of his.
 - `src/stratavoice/writing/` (**new**): `source.py` reads the three views (`my_writing`, `messages_all`, `emails_all`) and names the view and setting when one cannot be read; `clean.py` takes quotes, forwards, signatures (including ones learnt from repeats) and mail-app footers out of mail as spans over the original, and checks a reply for words of the mail it answers; `split.py` freezes the split (the newest year and about 5% of middling correspondents sealed, a 7-day buffer, 10% dev, grouped by thread or 6-hour chat session); `corpus.py` builds the `writing` table (chat runs joined within 5 minutes, mediums, trivial under 6 words without a question, exact and MinHash near copies clustered into their most held-out split, a 50-per-medium cleaning sample) and answers the routes and commands. See `docs/written-voice.md` (**new**).

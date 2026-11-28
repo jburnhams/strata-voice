@@ -12,7 +12,7 @@ strata-voice does not parse exports. strata-takeout loads them into the shared P
 | `writing_context` | `unified.messages_all` | Every chat line, anyone's, so a run of the person's lines can be cut where someone else speaks. |
 | `writing_emails` | `unified.emails_all` | Every mail, so a reply can be checked against the mail it answers. |
 | `writing_url` | (blank) | The database holding those views. Blank reads the app's own database, which is the shared Postgres in a deployment. |
-| `assistant_since` | `2022-11-30` | Pieces written on or after this day are marked `assisted`: they may have been written with help, so they stay in, but out of the reference set. Blank marks nothing. |
+| `assistant_since` | (blank) | Pieces written on or after this day are marked `assisted`: they may have been written with help, so they stay in, but out of the reference set. Blank, the default, marks nothing: the speaker wrote their mail and chats without AI help (Jonathan, 2026-11-28). |
 
 A view that cannot be read fails the build with its name, the strata-takeout command that builds it and the setting that points elsewhere.
 
