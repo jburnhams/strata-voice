@@ -24,6 +24,12 @@ From strata-python: GET /api/health, GET and PUT /api/settings (consent is the `
     /api/jobs...                          strata-python's queue routes (ingest jobs: progress, cancel, retry)
     GET  /api/coverage                    what the recordings cover: phonemes, pairs, stress, length, sentence, style
     POST /api/prompts/write               have the writer add a batch of prompts ({count}), then rank the queue
+    GET  /api/writing                     the written voice's corpus: rows by medium, split, year and flag, the split,
+                                          each medium's cleaning check, the newest build job
+    POST /api/writing/build               rebuild it from strata-takeout's views (a job: writing/corpus.py)
+    GET  /api/writing/page?after=&limit=&medium=&year=&trivial=   one page of it, newest first
+    GET  /api/writing/check?medium=       the rows of a medium's cleaning sample not checked yet
+    POST /api/writing/{id}/check          mark how a row was cleaned ({verdict}); DELETE clears the mark
 
 Every other path serves the web app (`server/static/index.html` when built with `cd web && npm run build`, else the
 plain stand-in `landing.html`), so a reload or a shared link to /takes opens that screen.
@@ -42,12 +48,13 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from strata_python import web
-from strata_python.contracts import ApiModel, Page
+from strata_python.contracts import ApiModel, Page, Task
 from strata_python.db.web import DbSession, add_database
 from strata_python.tasks.queue import Queue, Worker
 from strata_python.tasks.web import add_jobs
 
 from stratavoice import __version__, coverage, db, ingest, models, settings, studio, system, writer
+from stratavoice.writing import corpus
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
@@ -71,6 +78,12 @@ FILE_BODY = {
         "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
     }
 }
+
+
+class CheckIn(ApiModel):
+    """How a row of the writing was cleaned: one of writing.corpus.VERDICTS."""
+
+    verdict: str
 
 
 class WriteIn(ApiModel):
@@ -104,7 +117,13 @@ def create_app(worker: bool = True) -> FastAPI:
         # Threads, not job processes (isolate=False): an ingest job mostly waits on ffmpeg and strata-models, and on
         # the server's own engine it needs no second database setup. Cancel and shutdown reach it through `stopping`.
         running = (
-            Worker(queue(), {ingest.KIND: ingest.handler(records.engine)}, isolate=False).start() if worker else None
+            Worker(
+                queue(),
+                {ingest.KIND: ingest.handler(records.engine), corpus.KIND: corpus.handler(records.engine)},
+                isolate=False,
+            ).start()
+            if worker
+            else None
         )
         try:
             async with inner(a) as state:
@@ -241,6 +260,37 @@ def create_app(worker: bool = True) -> FastAPI:
     @app.delete("/api/uploads/{upload_id}")
     def delete_upload(upload_id: int, s: DbSession) -> ingest.UploadOut:
         return ingest.remove_upload(s, queue(), upload_id)
+
+    @app.get("/api/writing")
+    def get_writing(s: DbSession) -> corpus.WritingSummary:
+        return corpus.summary(s, queue())
+
+    @app.post("/api/writing/build")
+    def post_writing_build() -> Task:
+        return corpus.start(queue())
+
+    @app.get("/api/writing/page")
+    def get_writing_page(
+        s: DbSession,
+        after: int | None = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 20,
+        medium: str | None = None,
+        year: int | None = None,
+        trivial: bool | None = None,
+    ) -> Page[corpus.WritingOut]:
+        return corpus.page(s, after, limit, medium, year, trivial)
+
+    @app.get("/api/writing/check")
+    def get_writing_check(s: DbSession, medium: str) -> list[corpus.WritingOut]:
+        return corpus.to_check(s, medium)
+
+    @app.post("/api/writing/{writing_id}/check")
+    def post_writing_check(writing_id: int, body: CheckIn, s: DbSession) -> corpus.WritingOut:
+        return corpus.check(s, writing_id, body.verdict)
+
+    @app.delete("/api/writing/{writing_id}/check")
+    def delete_writing_check(writing_id: int, s: DbSession) -> corpus.WritingOut:
+        return corpus.check(s, writing_id, None)
 
     add_jobs(app, queue)
     web.add_web(app, STATIC, LANDING)  # last: its catch-all serves the web app at every other path

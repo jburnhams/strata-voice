@@ -28,6 +28,10 @@ export type Written = Schema<'Written'>
 export type Upload = Schema<'UploadOut'>
 export type UploadPage = Schema<'Page_UploadOut_'>
 export type Task = Schema<'Task'>
+export type Writing = Schema<'WritingOut'>
+export type WritingPage = Schema<'Page_WritingOut_'>
+export type WritingSummary = Schema<'WritingSummary'>
+export type MediumCount = Schema<'MediumCount'>
 /** `GET /api/system`: strata-python's SystemInfo plus this app's own numbers (src/stratavoice/system.py
  *  AppNumbers). Those are extra fields on the shared model, so the schema does not name them. */
 export type SystemStatus = Schema<'SystemInfo'> & { takes: number; seconds: number; recordings_bytes: number }
@@ -44,6 +48,10 @@ export const keys = {
   takes: ['takes'],
   coverage: ['coverage'],
   uploads: ['uploads'],
+  // Under `writing`, so a build or a check refreshes the summary, the pages and the sample together.
+  writing: ['writing'],
+  writingPage: ['writing', 'page'],
+  writingCheck: ['writing', 'check'],
   job: (id: number | string) => ['jobs', String(id)] as const,
 } as const
 
@@ -139,4 +147,72 @@ export function uploadSummary(u: Upload): string {
   if (u.retry) parts.push(`${u.retry} left out for noise or a cut word`)
   if (u.speaker_reference === null) parts.push('voices not checked')
   return `${parts.join('; ')}.`
+}
+
+/** The mediums the corpus sorts writing into (writing/corpus.py MEDIUMS), in the words the screen shows. */
+const mediumNames: Record<string, string> = {
+  'email-personal': 'Personal email',
+  'email-work': 'Work email',
+  'chat-direct': 'Chats with one person',
+  'chat-group': 'Group chats',
+  social: 'Posts and comments',
+  prompt: 'Prompts to assistants',
+}
+
+/** A medium in words; one this build does not know (from a newer server) shows as the server names it. */
+export const mediumName = (medium: string) => mediumNames[medium] ?? medium
+
+/** The splits (writing/split.py) in words: what each is for. */
+const splitNames: Record<string, string> = {
+  train: 'Train',
+  dev: 'Dev',
+  sealed: 'Sealed',
+  buffer: 'Buffer',
+}
+
+/** A split in words. */
+export const splitName = (split: string) => splitNames[split] ?? split
+
+/** The words cleaning uses for what it took out (writing/clean.py). */
+const removedNames: Record<string, string> = {
+  quote: 'quoted text',
+  forward: 'a forwarded message',
+  signature: 'a signature',
+  client: 'a mail app’s footer',
+}
+
+/** What cleaning took out, in words. */
+export const removedName = (kind: string) => removedNames[kind] ?? kind
+
+/** What the corpus flags a piece for (writing/corpus.py). */
+const flagNames: Record<string, string> = {
+  duplicate: 'Sent more than once',
+  'near-duplicate': 'Nearly the same as another',
+  leak: 'Still holds the mail it answers',
+}
+
+/** A flag in words. */
+export const flagName = (flag: string) => flagNames[flag] ?? flag
+
+/** What the person can say about a row's cleaning (writing/corpus.py VERDICTS), with the key that says it. */
+export const verdicts = [
+  { value: 'clean', label: 'Cleaned right', key: '1' },
+  { value: 'quote', label: 'Quoted text left in', key: '2' },
+  { value: 'signature', label: 'Signature left in', key: '3' },
+  { value: 'not-mine', label: 'Not my words', key: '4' },
+  { value: 'other', label: 'Something else', key: '5' },
+] as const
+
+/** A row's text in pieces: what was kept, and each span taken out with its kind, in the order of the original. */
+export function pieces(w: Writing): { text: string; removed: string | null }[] {
+  if (w.original === null) return [{ text: w.text, removed: null }]
+  const out: { text: string; removed: string | null }[] = []
+  let at = 0
+  for (const r of w.removed) {
+    if (r.start > at) out.push({ text: w.original.slice(at, r.start), removed: null })
+    out.push({ text: w.original.slice(r.start, r.end), removed: r.kind })
+    at = r.end
+  }
+  if (at < w.original.length) out.push({ text: w.original.slice(at), removed: null })
+  return out
 }

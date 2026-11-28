@@ -2,6 +2,24 @@
 
 Newest first, grouped by day. One entry per change, in the same commit or PR as the change.
 
+## 2026-11-28
+
+**strata-voice: the written voice's corpus (branch `claude/project-thread-l0qkez`)**
+Step 1 of the written voice plan. Jonathan asked to harvest every source (Facebook Messenger, WhatsApp, email, Google Hangouts), join consecutive chat messages and ignore trivial ones ("can't get much sense of voice from 'yep, see you soon'"), and for one view of just his sent emails and messages. That view is strata-takeout's `unified.my_writing` (strata-takeout #33), so strata-voice reads rows rather than parsing exports, and holds no addresses of his.
+- `src/stratavoice/writing/` (**new**): `source.py` reads the three views (`my_writing`, `messages_all`, `emails_all`) and names the view and setting when one cannot be read; `clean.py` takes quotes, forwards, signatures (including ones learnt from repeats) and mail-app footers out of mail as spans over the original, and checks a reply for words of the mail it answers; `split.py` freezes the split (the newest year and about 5% of middling correspondents sealed, a 7-day buffer, 10% dev, grouped by thread or 6-hour chat session); `corpus.py` builds the `writing` table (chat runs joined within 5 minutes, mediums, trivial under 6 words without a question, exact and MinHash near copies clustered into their most held-out split, a 50-per-medium cleaning sample) and answers the routes and commands. See `docs/written-voice.md` (**new**).
+- `src/stratavoice/models.py`, `migrations/20261128_9f3e5569d4a9_writing.py` (**new**): `writing` and `writing_splits`. A rebuild replaces the rows, keeps the frozen split, and keeps each row's check by its key.
+- `src/stratavoice/settings.py`, `pyproject.toml`: `writing_url`, `writing_source`, `writing_context`, `writing_emails` (checked as `schema.table` identifiers, since they go into SQL) and `assistant_since` (2022-11-30: pieces from then on are marked `assisted`).
+- `src/stratavoice/server/app.py`: `GET /api/writing`, `POST /api/writing/build` (a job on the queue), `GET /api/writing/page`, `GET /api/writing/check`, `POST`/`DELETE /api/writing/{id}/check`.
+- `src/stratavoice/cli.py`: `writing build`, `writing corpus [--json]`, `writing export [-o] [--trivial]`.
+- Tests: `tests/utils/writing.py` (**new**, the three views as a real SQLite file) and the `writing_source` fixture; `test_writing_clean.py`, `test_writing_split.py`, `test_writing_corpus.py`, `test_writing_api.py` (**new**).
+- Web:
+  - `src/screens/WritingScreen.tsx` (**new**): My writing, with the finding (how much, from when, what is sealed), then tabs in the URL: Overview (Build again with the job's status, counts by medium, the split as a `CompositionBar`, flags), Browse (filtered by medium, year and short replies, with what cleaning took out struck through) and Check cleaning (one sample piece at a time, keys 1 to 5, each mark undoable through `useUndoable`).
+  - `api.ts`: the writing types, `mediumName`, `splitName`, `flagName`, `removedName`, `verdicts` and `pieces`; `routes.tsx`, `Layout.tsx`: the My writing nav item, which moves every screenshot's nav.
+  - `src/mocks/writing-sample.ts` (**new**) and the writing handlers and states in `handlers.ts`; `fixtures.ts`: the new settings.
+  - `tests/integration/WritingScreen.test.tsx`, `tests/unit/writing.test.ts`, `stories/writing.stories.tsx` (**new**); `strata-visual.config.ts`: the writing route's overview, browse and checked states; `SettingsScreen.test.tsx` compares against the default settings rather than a copy of them.
+  - `openapi.json`, `api.generated.ts` regenerated.
+- `README.md`, `AGENTS.md`, `docs/overview.md`, `docs/implementation-plan.md` (a Written voice section, W1 done, W2 next), `tests/unit/README.md`, `web/tests/README.md`: the corpus, its commands and its tests.
+
 ## 2026-11-26
 
 **strata-voice: bring in a recording (branch `claude/project-thread-vao1r7`)**

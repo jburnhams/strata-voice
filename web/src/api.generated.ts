@@ -415,10 +415,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/writing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Writing */
+        get: operations["get_writing_api_writing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/writing/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Writing Build */
+        post: operations["post_writing_build_api_writing_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/writing/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Writing Check */
+        get: operations["get_writing_check_api_writing_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/writing/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Writing Page */
+        get: operations["get_writing_page_api_writing_page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/writing/{writing_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Writing Check */
+        post: operations["post_writing_check_api_writing__writing_id__check_post"];
+        /** Delete Writing Check */
+        delete: operations["delete_writing_check_api_writing__writing_id__check_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CheckIn
+         * @description How a row of the writing was cleaned: one of writing.corpus.VERDICTS.
+         */
+        CheckIn: {
+            /** Verdict */
+            verdict: string;
+        };
+        /**
+         * Count
+         * @description Rows by one value (a split, a year, a flag).
+         */
+        Count: {
+            /** Rows */
+            rows: number;
+            /** Value */
+            value: string;
+        };
         /**
          * Coverage
          * @description What the recordings cover. `prompts` counts those recorded and `seconds` what they took; `waiting` the generated
@@ -473,6 +577,37 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * MediumCount
+         * @description One medium's rows: how many, how many trivial, words in the rest, the years they span, and how far the
+         *     person has got checking its cleaning sample (`checked` of `sample`, `clean` of those).
+         */
+        MediumCount: {
+            /** Checked */
+            checked: number;
+            /** Clean */
+            clean: number;
+            /**
+             * First
+             * Format: date-time
+             */
+            first: string;
+            /**
+             * Last
+             * Format: date-time
+             */
+            last: string;
+            /** Medium */
+            medium: string;
+            /** Rows */
+            rows: number;
+            /** Sample */
+            sample: number;
+            /** Trivial */
+            trivial: number;
+            /** Words */
+            words: number;
+        };
         /** Page[PromptOut] */
         Page_PromptOut_: {
             /** Items */
@@ -504,6 +639,15 @@ export interface components {
         Page_UploadOut_: {
             /** Items */
             items: components["schemas"]["UploadOut"][];
+            /** Next */
+            next: string | null;
+            /** Total */
+            total: number | null;
+        };
+        /** Page[WritingOut] */
+        Page_WritingOut_: {
+            /** Items */
+            items: components["schemas"]["WritingOut"][];
             /** Next */
             next: string | null;
             /** Total */
@@ -548,6 +692,18 @@ export interface components {
             text: string;
         };
         /**
+         * Removed
+         * @description A span taken out of a mail's original text (clean.py): `quote`, `forward`, `signature` or `client`.
+         */
+        Removed: {
+            /** End */
+            end: number;
+            /** Kind */
+            kind: string;
+            /** Start */
+            start: number;
+        };
+        /**
          * ServiceStatus
          * @description Another strata service this app calls, as its health endpoint answered just now.
          */
@@ -565,6 +721,8 @@ export interface components {
         };
         /** StratavoiceSettings */
         StratavoiceSettings: {
+            /** Assistant Since */
+            assistant_since: string;
             /** Consented On */
             consented_on: string;
             /** Espeak */
@@ -573,6 +731,14 @@ export interface components {
             max_take_seconds: number;
             /** Recordings Dir */
             recordings_dir: string;
+            /** Writing Context */
+            writing_context: string;
+            /** Writing Emails */
+            writing_emails: string;
+            /** Writing Source */
+            writing_source: string;
+            /** Writing Url */
+            writing_url: string;
         };
         /**
          * Studio
@@ -780,6 +946,78 @@ export interface components {
              * @default 40
              */
             count: number;
+        };
+        /**
+         * WritingOut
+         * @description One thing the person wrote, as cleaned (the fields are explained in models.Writing). `original` is null when
+         *     nothing was taken out of it; `removed` are offsets into it.
+         */
+        WritingOut: {
+            /** Assisted */
+            assisted: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Checked As */
+            checked_as: string | null;
+            /** Flags */
+            flags: string[];
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Medium */
+            medium: string;
+            /** Original */
+            original: string | null;
+            /** Parts */
+            parts: number;
+            /** Platform */
+            platform: string;
+            /** Removed */
+            removed: components["schemas"]["Removed"][];
+            /** Sample */
+            sample: number | null;
+            /** Split */
+            split: string;
+            /** Subject */
+            subject: string | null;
+            /** Text */
+            text: string;
+            /** Trivial */
+            trivial: boolean;
+            /** Words */
+            words: number;
+            /** Work */
+            work: boolean;
+        };
+        /**
+         * WritingSummary
+         * @description What the writing holds: rows by medium, split, year and flag; the frozen split's cutoff and held-out
+         *     recipients; when it was last built and the newest build job (null: never built).
+         */
+        WritingSummary: {
+            /** Assisted */
+            assisted: number;
+            /** Built */
+            built: string | null;
+            /** Cutoff */
+            cutoff: string | null;
+            /** Flags */
+            flags: components["schemas"]["Count"][];
+            /** Holdout */
+            holdout: number;
+            job: components["schemas"]["Task"] | null;
+            /** Mediums */
+            mediums: components["schemas"]["MediumCount"][];
+            /** Rows */
+            rows: number;
+            /** Splits */
+            splits: components["schemas"]["Count"][];
+            /** Years */
+            years: components["schemas"]["Count"][];
         };
         /**
          * Written
@@ -1639,6 +1877,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_writing_api_writing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritingSummary"];
+                };
+            };
+        };
+    };
+    post_writing_build_api_writing_build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+        };
+    };
+    get_writing_check_api_writing_check_get: {
+        parameters: {
+            query: {
+                medium: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_writing_page_api_writing_page_get: {
+        parameters: {
+            query?: {
+                after?: number | null;
+                limit?: number;
+                medium?: string | null;
+                year?: number | null;
+                trivial?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_WritingOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_writing_check_api_writing__writing_id__check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                writing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_writing_check_api_writing__writing_id__check_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                writing_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WritingOut"];
                 };
             };
             /** @description Validation Error */

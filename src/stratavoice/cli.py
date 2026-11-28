@@ -4,7 +4,9 @@ how far each prompt has got, `takes` lists the kept takes with their verdicts, `
 (after strata-models was not running), `manifest` writes the dataset manifest (JSONL), `coverage` says what the
 recordings cover and lack, `write` has the prompt writer add a batch of prompts, `rank` orders the queue again, `pilot` reads a session's
 takes against the scoring thresholds (step 4, tuning them), and `ingest` brings in found recordings (the Upload screen's
-work, for files too big to send through a browser)."""
+work, for files too big to send through a browser). For the written voice, `writing build` rebuilds the cleaned, split
+corpus of what the person wrote from strata-takeout's views, `writing corpus` says what it holds, and `writing export`
+writes it as JSON lines."""
 
 import argparse
 import datetime
@@ -187,6 +189,59 @@ def cmd_pilot(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_writing_build(args: argparse.Namespace) -> int:
+    from stratavoice.writing import corpus
+
+    engine = db.PROJECT.open(default=db.default_url())
+    try:
+        done = corpus.run_build(engine)
+    finally:
+        engine.dispose()
+    splits = ", ".join(f"{c.value} {c.rows}" for c in done.splits)
+    print(
+        f"  read {done.read} rows; {done.rows} kept ({done.joined} chat lines joined into others), {done.trivial} "
+        f"trivial, {done.duplicates} copies, {done.leaks} with a quote left in, {done.signatures} signature(s) learnt"
+    )
+    print(f"  split: {splits}; sealed from {done.cutoff:%Y-%m-%d}")
+    return 0
+
+
+def cmd_writing_corpus(args: argparse.Namespace) -> int:
+    from stratavoice.writing import corpus
+
+    with db.session() as s:
+        got = corpus.summary(s)
+    if args.json:
+        print(json.dumps(got.model_dump(mode="json"), indent=1))
+        return 0
+    if not got.rows:
+        print("  (nothing built yet: strata-voice writing build)")
+        return 0
+    for m in got.mediums:
+        print(
+            f"  {m.medium:15} {m.rows:7} rows ({m.trivial} trivial), {m.words:9} words, {m.first:%Y} to {m.last:%Y}; "
+            f"checked {m.checked} of {m.sample}, {m.clean} clean"
+        )
+    print("  split: " + ", ".join(f"{c.value} {c.rows}" for c in got.splits))
+    if got.flags:
+        print("  flags: " + ", ".join(f"{c.value} {c.rows}" for c in got.flags))
+    return 0
+
+
+def cmd_writing_export(args: argparse.Namespace) -> int:
+    from stratavoice.writing import corpus
+
+    with db.session() as s:
+        lines = list(corpus.export(s, include_trivial=args.trivial))
+    if args.out:
+        with open(args.out, "w", encoding="utf8", newline="\n") as f:
+            f.writelines(lines)
+        print(f"wrote {len(lines)} record(s) to {args.out}")
+    else:
+        sys.stdout.writelines(lines)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="strata-voice")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -228,6 +283,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     ig = sub.add_parser("ingest", help="bring in found recordings (any format): level, transcribe, cut, judge, keep")
     ig.add_argument("files", nargs="+", metavar="FILE")
     ig.set_defaults(fn=cmd_ingest)
+    wr = sub.add_parser("writing", help="the written voice: what you wrote, cleaned and split (writing build first)")
+    wsub = wr.add_subparsers(dest="writing", required=True)
+    wb = wsub.add_parser("build", help="rebuild it from strata-takeout's views (the split stays as first frozen)")
+    wb.set_defaults(fn=cmd_writing_build)
+    wc = wsub.add_parser("corpus", help="what it holds: rows by medium, the split, the cleaning check")
+    wc.add_argument("--json", action="store_true")
+    wc.set_defaults(fn=cmd_writing_corpus)
+    we = wsub.add_parser("export", help="write it as JSON lines, copies left out")
+    we.add_argument("-o", "--out", help="file to write (default: standard output)")
+    we.add_argument("--trivial", action="store_true", help="include the trivial rows too")
+    we.set_defaults(fn=cmd_writing_export)
     shared.add_set(sub, settings.SETTINGS)
     shared.add_serve(sub, run_server, default_port=8370)
     shared.add_openapi(sub, create_app)

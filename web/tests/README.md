@@ -5,7 +5,7 @@ Vitest 5, Testing Library, user-event, MSW, and strata-react's test helpers (`st
 ## Layout
 
 - `unit/`: node environment, no DOM. Pure functions: the field checks (`api.ts`), the screens' findings (the studio's progress line, the disk sentences), the mock server's paging, and that `index.html` inlines Strata's colour-scheme script.
-- `integration/`: jsdom. One file per screen (`StudioScreen`, `HandsFreeScreen`, `TakesScreen`, `UploadScreen`, `SystemScreen`, `SettingsScreen`) plus `App` for the frame and routing. Each test opens the app at a URL with `openApp('/settings?tab=appearance')` (`utils/render.tsx`), which renders the app's own route tree (`src/routes.tsx`) through `renderRoutes` from `strata-react/testing`, with a fresh query client (retries off), ThemeProvider (storage off) and strata-react's `fakeMicrophone()` (pass `{ microphone: fakeMicrophone({ refuse }) }` and the like for another one).
+- `integration/`: jsdom. One file per screen (`StudioScreen`, `HandsFreeScreen`, `TakesScreen`, `UploadScreen`, `WritingScreen`, `SystemScreen`, `SettingsScreen`) plus `App` for the frame and routing. Each test opens the app at a URL with `openApp('/settings?tab=appearance')` (`utils/render.tsx`), which renders the app's own route tree (`src/routes.tsx`) through `renderRoutes` from `strata-react/testing`, with a fresh query client (retries off), ThemeProvider (storage off) and strata-react's `fakeMicrophone()` (pass `{ microphone: fakeMicrophone({ refuse }) }` and the like for another one).
 - `utils/`: `server.ts` is the msw server over the app's mock handlers (`src/mocks/handlers.ts`: **every endpoint the app calls needs a handler there**; an unanswered request fails the test). Put the server into another state with the named handlers (`server.use(keepFails)`); the store resets after each test. `setup.ts` installs Strata's layout shims so tables and lists measure in jsdom. `render.tsx` provides `openApp()`.
 - `visual/baselines/`: committed PNGs written by `strata-visual` (see below).
 
@@ -38,4 +38,5 @@ Vitest 5, Testing Library, user-event, MSW, and strata-react's test helpers (`st
 | `src/screens/TakesScreen.tsx`                  | 100     | done   | integration/TakesScreen.test.tsx                         |
 | `src/screens/UploadScreen.tsx`                 | 100     | done   | integration/UploadScreen.test.tsx, unit/logic.test.ts    |
 | `src/screens/SystemScreen.tsx`                 | 100     | done   | integration/SystemScreen.test.tsx, unit/logic.test.ts    |
+| `src/screens/WritingScreen.tsx`                | 100     | done   | integration/WritingScreen.test.tsx, unit/writing.test.ts |
 | `src/screens/SettingsScreen.tsx`               | 100     | done   | integration/SettingsScreen.test.tsx                      |

@@ -68,6 +68,21 @@ export default defineVisualConfig({
         },
       },
       { name: 'coverage', path: '/coverage' },
+      {
+        name: 'writing',
+        path: '/writing',
+        states: {
+          overview: [],
+          browse: { path: '/writing?tab=browse' },
+          checked: {
+            path: '/writing?tab=check',
+            setup: async page => {
+              await page.getByRole('button', { name: 'Cleaned right' }).click()
+              await page.getByRole('button', { name: 'Undo' }).waitFor()
+            },
+          },
+        },
+      },
       { name: 'system', path: '/system' },
       {
         name: 'settings',

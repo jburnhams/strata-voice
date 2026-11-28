@@ -9,6 +9,11 @@ export const defaultSettings: Settings = {
   consented_on: '2026-11-23',
   max_take_seconds: 60,
   espeak: '',
+  writing_url: '',
+  writing_source: 'unified.my_writing',
+  writing_context: 'unified.messages_all',
+  writing_emails: 'unified.emails_all',
+  assistant_since: '2022-11-30',
 }
 
 const seeds: [string, string, string, string | null, string, string | null][] = [

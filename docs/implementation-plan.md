@@ -20,4 +20,12 @@ Agreed with Jonathan on 2026-11-23. Each step ends with something he can use.
   Sentences are prompts of kind `found` (source `upload`), kept out of the studio queue and counted in coverage. The manifest marks them `found`, with their file and place.
   - [ ] On the deploy machine: `scripts/setup_worker_venv.sh speaker` in strata-models and its GPU test, then bring in one real recording and look at the similarity spread. The 0.4 is a first guess, to tune like step 4's thresholds.
 
+## Written voice
+
+The plan (step 1 the corpus, step 2 a preregistered pilot of ways to show a model the person's writing, judged blind) was agreed with Jonathan on 2026-11-28; its reasons are in voice-research (`voice-design/written.md`, `experiments.md`).
+
+- [x] **W1. Corpus** (2026-11-28, Jonathan: "harvest all sources ... for chat then can concat consecutive messages. then ignore all trivial ones"): `strata-voice writing build` and the My writing screen read strata-takeout's `unified.my_writing` (every email, chat line, post, comment and assistant prompt he sent, with his addresses decided there) and build the `writing` table: mail cleaned of quotes, forwards and signatures, chat runs joined, short replies set aside, copies flagged, and the split frozen (newest year and some correspondents sealed, a week's buffer, 10% dev), with a 50-per-medium cleaning sample to check ([written-voice.md](written-voice.md)).
+  - [ ] On the deploy machine: build it against the live views, then Jonathan checks each medium's sample (aim: 48 of 50 cleaned right) before step 2.
+- [ ] **W2. Pilot**: dev reply tasks, generated replies from each arm, blind pairs judged on a screen.
+
 The app was made from python-app-template on 2026-11-23; the template's milestones are in its own repository.
