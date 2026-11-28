@@ -12,16 +12,11 @@ what was taken out struck through, and the person can check the rules (corpus.SA
 
 A sign-off ("Thanks,\\nJonathan") is part of a voice and stays. A signature is told from it by repetition and shape:
 the same trailing lines in at least `SIGNATURE_REPEATS` of the person's mails (`learn_signatures`) that are three or
-more lines, or hold contact details (a phone number, an address, a web or mail address).
-
-One rewrite is made, after the spans: `unwrap` joins the lines a mail client broke at a fixed width (Jonathan,
-2026-11-28: "try to detect and rejoin fixed line widths - especially if it breaks words"), because those breaks are
-the client's, not the person's. The original keeps them."""
+more lines, or hold contact details (a phone number, an address, a web or mail address)."""
 
 import re
 from collections import Counter
 from collections.abc import Iterable
-from itertools import pairwise
 
 QUOTE = "quote"
 FORWARD = "forward"
@@ -33,13 +28,6 @@ Span = tuple[str, int, int]
 SIGNATURE_REPEATS = 20
 SIGNATURE_LINES = 6  # the longest trailing block counted as a signature
 LEAK_WORDS = 8  # a run of this many words also in the mail replied to is a quote left in
-WRAP_WIDTHS = range(
-    60, 81
-)  # mail clients wrapped at 66 to 78 characters; a person's own lines are rarely all this long
-WRAP_LINES = 2  # lines broken at the width before a mail counts as wrapped
-WRAP_SLACK = 20  # a line within this many characters of the width reached it (the next word did not fit)
-HARD_SHARE = 0.8  # share of broken lines exactly at the width that says the client cut mid-word
-LIST_ITEM = re.compile(r"\s*([-*•>]|\d+[.)])\s")
 
 ATTRIBUTION = re.compile(r"\s*On\b.{0,300}\bwrote:\s*", re.S)
 ORIGINAL = re.compile(r"\s*-{2,}\s*Original Message\s*-{2,}\s*", re.I)
@@ -184,48 +172,6 @@ def learn_signatures(texts: Iterable[str]) -> frozenset[tuple[str, ...]]:
         for block, n in counts.items()
         if n >= SIGNATURE_REPEATS and (len(block) >= 3 or any(CONTACT.search(line) for line in block))
     )
-
-
-def unwrap(text: str) -> str:
-    """Join the lines a mail client broke at a fixed width; anything else is left as written.
-
-    The width is the longest line, if it is a wrapping width (`WRAP_WIDTHS`). A line was broken by the client when the
-    next line's first word would have fitted after it (so the client had to move it down): the two are joined with a
-    space. A client that cut at the column, mid-word, leaves most broken lines exactly the width long (`HARD_SHARE`):
-    those are joined with nothing between, which mends the cut word. A line ending in a space (format=flowed) is
-    joined whatever the width. A blank line, a list item or a quoted line is never joined onto."""
-    lines = text.split("\n")
-    width = max((len(line.rstrip()) for line in lines), default=0)
-    wrapped = width in WRAP_WIDTHS
-    pairs = [(a, b) for a, b in pairwise(lines) if a.strip() and b.strip() and not LIST_ITEM.match(b)]
-    # Among the lines that reach near the width (a paragraph's last line does not), how many stop exactly at it.
-    near = [a for a, _ in pairs if len(a.rstrip()) >= width - WRAP_SLACK]
-    exact = sum(len(a) == width for a in near)
-    hard = wrapped and exact >= WRAP_LINES and exact >= HARD_SHARE * len(near)
-
-    def broken(a: str, b: str) -> bool:
-        if not a.strip() or not b.strip() or LIST_ITEM.match(b) or a.rstrip() == "--":
-            return False
-        if a.endswith(" "):
-            return True
-        if not wrapped:
-            return False
-        if hard:
-            return len(a) == width
-        return len(a.rstrip()) + 1 + len(b.split()[0]) > width
-
-    marks = [broken(a, b) for a, b in pairwise(lines)]
-    if sum(marks) < WRAP_LINES:
-        return text
-    out = lines[0]
-    for mark, line in zip(marks, lines[1:], strict=True):
-        if not mark:
-            out += "\n" + line
-        elif hard or out.endswith(" "):
-            out += line
-        else:
-            out += " " + line.lstrip()
-    return out
 
 
 def words(text: str) -> list[str]:

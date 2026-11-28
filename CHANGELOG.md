@@ -4,13 +4,11 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 
 ## 2026-11-28
 
-**strata-voice: rejoin mail wrapped at a fixed width; nothing marked assisted by default (branch `claude/project-thread-l0qkez`)**
-From the trial build on the live view. Old mail kept its client's line breaks at about 75 characters; Jonathan: "try to detect and rejoin fixed line widths - especially if it breaks words". It also marked 36,239 pieces (everything since 2022-11-30) as possibly written with AI help; Jonathan: his email, texts and chats had little AI help ("i've mostly used it for coding"), so the default now marks nothing. This corrects the earlier entry below, which gave 2022-11-30 as the default. He is happy for personal details to go to a cloud model, just not into GitHub, so nothing is masked.
-- `src/stratavoice/writing/clean.py`: `unwrap` joins lines a client broke at a fixed width (60 to 80 characters, where the next word would have fitted), mends words a client cut at the column, and joins format=flowed lines; `writing/corpus.py` applies it to each mail's kept text. `tests/unit/test_writing_clean.py`: wrapped, cut, flowed and unwrapped mail. `docs/written-voice.md`: the rule.
+**strata-voice: nothing marked assisted by default (branch `claude/project-thread-l0qkez`)**
+The trial build on the live view marked 36,239 pieces (everything since 2022-11-30) as possibly written with AI help. Jonathan: his email, texts and chats had little AI help ("i've mostly used it for coding"), so the default now marks nothing. This corrects the earlier entry below, which gave 2022-11-30 as the default. He is happy for personal details to go to a cloud model, just not into GitHub, so nothing is masked. Rejoining wrapped mail is #10, measured on the live view, rather than a second version here.
 - `src/stratavoice/settings.py`: `assistant_since` defaults to blank; a day can still be set.
 - `tests/unit/test_writing_api.py`, `test_writing_corpus.py`: the blank default, and a set day still read.
 - `web/src/mocks/fixtures.ts`: the settings fixture's blank date. `docs/written-voice.md`: the default and why.
-
 
 **strata-voice: the written voice's corpus (branch `claude/project-thread-l0qkez`)**
 Step 1 of the written voice plan. Jonathan asked to harvest every source (Facebook Messenger, WhatsApp, email, Google Hangouts), join consecutive chat messages and ignore trivial ones ("can't get much sense of voice from 'yep, see you soon'"), and for one view of just his sent emails and messages. That view is strata-takeout's `unified.my_writing` (strata-takeout #33), so strata-voice reads rows rather than parsing exports, and holds no addresses of his.
