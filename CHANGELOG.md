@@ -5,7 +5,7 @@ Newest first, grouped by day. One entry per change, in the same commit or PR as 
 ## 2026-11-28
 
 **strata-voice: nothing marked assisted by default (branch `claude/project-thread-l0qkez`)**
-The trial build on the live view marked 36,239 pieces (everything since 2022-11-30) as possibly written with AI help. Jonathan: his email, texts and chats had little AI help ("i've mostly used it for coding"), so the default now marks nothing. This corrects the earlier entry below, which gave 2022-11-30 as the default. He is happy for personal details to go to a cloud model, just not into GitHub, so nothing is masked. Rejoining wrapped mail is #10, measured on the live view, rather than a second version here.
+The trial build on the live view marked everything since 2022-11-30 as possibly written with AI help. Jonathan: his email, texts and chats had little AI help ("i've mostly used it for coding"), so the default now marks nothing. This corrects the earlier entry below, which gave 2022-11-30 as the default. He is happy for personal details to go to a cloud model, just not into GitHub, so nothing is masked. Rejoining wrapped mail is #10, measured on the live view, rather than a second version here.
 - `src/stratavoice/settings.py`: `assistant_since` defaults to blank; a day can still be set.
 - `tests/unit/test_writing_api.py`, `test_writing_corpus.py`: the blank default, and a set day still read.
 - `web/src/mocks/fixtures.ts`: the settings fixture's blank date. `docs/written-voice.md`: the default and why.
