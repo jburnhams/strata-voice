@@ -1,5 +1,6 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it } from 'vitest'
+import { defaultSettings } from '../../src/mocks/fixtures'
 import { saveSettingsFails, settingsError, settingsNotConsented } from '../../src/mocks/handlers'
 import { openApp, screen, waitFor } from '../utils/render'
 import { mock, server } from '../utils/server'
@@ -17,7 +18,7 @@ describe('Settings', () => {
     await user.type(seconds, '90')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
     expect(await screen.findByText('Saved', { selector: '[role=status]' })).toBeInTheDocument()
-    expect(mock.settings).toEqual({ recordings_dir: '/home/ada/voice', max_take_seconds: 90, consented_on: '2026-11-23', espeak: '' })
+    expect(mock.settings).toEqual({ ...defaultSettings, recordings_dir: '/home/ada/voice', max_take_seconds: 90 })
   })
 
   it('says under each field what is wrong, saves nothing, and clears the message as it is fixed', async () => {

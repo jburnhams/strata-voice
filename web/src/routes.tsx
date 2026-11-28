@@ -15,6 +15,7 @@ import { StudioScreen } from './screens/StudioScreen'
 import { SystemScreen } from './screens/SystemScreen'
 import { TakesScreen } from './screens/TakesScreen'
 import { UploadScreen } from './screens/UploadScreen'
+import { WritingScreen } from './screens/WritingScreen'
 
 export const routes: RouteObject[] = [
   {
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
       { path: 'takes', element: <TakesScreen /> },
       { path: 'upload', element: <UploadScreen /> },
       { path: 'coverage', element: <CoverageScreen /> },
+      { path: 'writing', element: <WritingScreen /> },
       { path: 'system', element: <SystemScreen /> },
       { path: 'settings', element: <SettingsScreen /> },
       { path: '*', element: <NotFoundScreen /> },

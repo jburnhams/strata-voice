@@ -1,9 +1,10 @@
 """The app's records: SQLAlchemy models, migrated by Alembic (`src/stratavoice/migrations/`, declared in
 `src/stratavoice/strata-db.toml`).
 
-Three tables of the app's own: the prompts the speaker is asked to read (or talk about), the takes recorded for them,
-and the recordings brought in on the Upload screen (ingest.py), whose sentences become takes too; plus strata-python's
-job queue (`jobs`), which runs each upload in the background. The audio itself
+The spoken voice's tables: the prompts the speaker is asked to read (or talk about), the takes recorded for them,
+and the recordings brought in on the Upload screen (ingest.py), whose sentences become takes too; the written voice's:
+what the person wrote, cleaned (`writing`), and its frozen split (`writing_splits`); plus strata-python's job queue
+(`jobs`), which runs each upload and each build of the writing in the background. The audio itself
 is a file in the recordings folder (`settings.recordings_dir`), never in the database: masters are large, must be
 lossless and are handed to training tools as files. A take row says where its file is and what it holds.
 
@@ -129,6 +130,77 @@ class Take(Base):
     source_start: Mapped[float | None] = mapped_column(Float, default=None)
     source_end: Mapped[float | None] = mapped_column(Float, default=None)
     speaker_similarity: Mapped[float | None] = mapped_column(Float, default=None)
+
+
+class Writing(Base):
+    """One thing the person wrote, cleaned for learning their written voice (writing/corpus.py): a mail, a post, a
+    comment, or a run of their chat lines with nobody else's in between (`parts` lines, joined with line breaks).
+
+    `original` is the text as stored and `removed` the spans taken out of it (JSON `[[kind, start, end], ...]`:
+    `quote`, `forward`, `signature`, `client`), so `text` is `original` without them and the screen can show both;
+    `original` is null when nothing was removed. Nothing else is changed: spelling, casing, emoji and line breaks are
+    the voice. `key` (`platform:first source id`) survives a rebuild, so a check mark (`checked_as`) does too.
+
+    `medium` is what the research conditions on: `email-work`, `email-personal`, `chat-direct`, `chat-group`,
+    `social`. `recipient` is an opaque key (a hash of the addresses, or of the conversation), never a name.
+    `trivial` (too short to say anything about a voice: under six words and no question) is counted but never used
+    as an example or a task. `flags` are space-separated codes (`leak`: eight or more words in a row also in the mail
+    it answers; `duplicate`, `near-duplicate`: a copy of another row, which is the one used). `assisted`: written on
+    or after the `assistant_since` setting. `split` is `train`, `dev`, `sealed` or `buffer` (writing/split.py), fixed
+    by the frozen `WritingSplit`."""
+
+    __tablename__ = "writing"
+    __table_args__ = {"sqlite_autoincrement": True}  # noqa: RUF012 - SQLAlchemy reads it from the class
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
+    key: Mapped[str] = mapped_column(String(200), unique=True)
+    platform: Mapped[str] = mapped_column(String(20), index=True)
+    source: Mapped[str] = mapped_column(String(40))
+    kind: Mapped[str] = mapped_column(String(10))
+    medium: Mapped[str] = mapped_column(String(20), index=True)
+    work: Mapped[bool] = mapped_column(Boolean)
+    at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ended: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    conversation: Mapped[str | None] = mapped_column(String(300))
+    group_key: Mapped[str] = mapped_column(String(64))
+    recipient: Mapped[str | None] = mapped_column(String(32))
+    recipients: Mapped[int | None] = mapped_column(Integer)
+    subject: Mapped[str | None] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)
+    original: Mapped[str | None] = mapped_column(Text)
+    removed: Mapped[str] = mapped_column(Text)
+    parts: Mapped[int] = mapped_column(Integer)
+    source_ids: Mapped[str] = mapped_column(Text)
+    words: Mapped[int] = mapped_column(Integer)
+    trivial: Mapped[bool] = mapped_column(Boolean, index=True)
+    flags: Mapped[str] = mapped_column(String(200))
+    assisted: Mapped[bool] = mapped_column(Boolean)
+    split: Mapped[str] = mapped_column(String(10), index=True)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    in_reply_to: Mapped[str | None] = mapped_column(String(500))
+    built: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    # Its place in its medium's cleaning sample (0 to SAMPLE_SIZE - 1, writing/corpus.py), null outside it: a fixed
+    # random draw of the rows worth checking, so a rebuild asks about the same rows.
+    sample: Mapped[int | None] = mapped_column(Integer, default=None, index=True)
+    # The person's check of the cleaning (the screen's Check tab): `clean`, `quote`, `signature`, `not-mine`, `other`.
+    checked_as: Mapped[str | None] = mapped_column(String(20), default=None)
+    checked: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class WritingSplit(Base):
+    """The split of the writing into train, dev and sealed, frozen the first time the corpus is built and never
+    changed by a rebuild (writing/split.py): `cutoff` (everything from then on is sealed, a year before the newest
+    message at freezing), the `seed` the dev share and the held-out recipients are drawn with, and those recipients
+    (`holdout`, space-separated keys). A new message brought in later is placed by the same rule, so the sealed set
+    can only grow. Only one row: a second split would make every earlier experiment's sealed set leak."""
+
+    __tablename__ = "writing_splits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
+    created: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    cutoff: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True))
+    seed: Mapped[str] = mapped_column(String(32))
+    holdout: Mapped[str] = mapped_column(Text)
 
 
 #: strata-python's job queue, which runs each upload's `ingest` job (in the server's worker; `strata-voice ingest` in

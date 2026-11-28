@@ -33,7 +33,7 @@ artifacts = ["src/stratavoice/server/static/**"]
 
 [tool.pytest.ini_options]
 strata_env_prefix = "STRATAVOICE"                 # strata-python plugin: STRATAVOICE_HOME and STRATAVOICE_DATA point into a tmp dir for every test
-strata_tuning_vars = ["STRATAVOICE_RECORDINGS_DIR", "STRATAVOICE_CONSENTED_ON", "STRATAVOICE_MAX_TAKE_SECONDS"]    # removed from the environment for every test
+strata_tuning_vars = ["STRATAVOICE_RECORDINGS_DIR", "STRATAVOICE_CONSENTED_ON", "STRATAVOICE_MAX_TAKE_SECONDS", "STRATAVOICE_WRITING_URL", "STRATAVOICE_WRITING_SOURCE", "STRATAVOICE_WRITING_CONTEXT", "STRATAVOICE_WRITING_EMAILS", "STRATAVOICE_ASSISTANT_SINCE"]    # removed from the environment for every test
 testpaths = ["tests/unit"]
 pythonpath = ["tests/utils"]                   # takes.py: speech-like WAVs and transcribe answers
 addopts = "-ra --timeout=300 --strict-markers --strict-config --import-mode=importlib"   # importlib: tests/unit and tests/integration may share file names

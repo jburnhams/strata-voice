@@ -5,10 +5,12 @@ declares its database (`[tool.strata-db]`), `db_session`, `db_engine`, `db_url` 
 SQLite copy (or a throwaway Postgres with `--pg`)."""
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from strata_python.testing import FakeModels
+from writing import Source, source
 
 
 @pytest.fixture
@@ -30,3 +32,15 @@ def client(db_env: str, models: FakeModels) -> Iterator[TestClient]:
 
     with TestClient(create_app(worker=False)) as c:
         yield c
+
+
+@pytest.fixture
+def writing_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Source]:
+    """strata-takeout's views of what the person wrote, stood in for by real tables in a SQLite file
+    (tests/utils/writing.py), with the writing settings pointed at them. Empty until a test adds rows."""
+    src = source(str(tmp_path / "takeout.db"))
+    src.use(monkeypatch)
+    try:
+        yield src
+    finally:
+        src.engine.dispose()

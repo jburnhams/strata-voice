@@ -1,6 +1,39 @@
 {
  "components": {
   "schemas": {
+   "CheckIn": {
+    "description": "How a row of the writing was cleaned: one of writing.corpus.VERDICTS.",
+    "properties": {
+     "verdict": {
+      "title": "Verdict",
+      "type": "string"
+     }
+    },
+    "required": [
+     "verdict"
+    ],
+    "title": "CheckIn",
+    "type": "object"
+   },
+   "Count": {
+    "description": "Rows by one value (a split, a year, a flag).",
+    "properties": {
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "value": {
+      "title": "Value",
+      "type": "string"
+     }
+    },
+    "required": [
+     "value",
+     "rows"
+    ],
+    "title": "Count",
+    "type": "object"
+   },
    "Coverage": {
     "description": "What the recordings cover. `prompts` counts those recorded and `seconds` what they took; `waiting` the generated\nprompts still to record; `phonemised` is false when espeak is missing, so phonemes cannot be counted.",
     "properties": {
@@ -136,6 +169,62 @@
      }
     },
     "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "MediumCount": {
+    "description": "One medium's rows: how many, how many trivial, words in the rest, the years they span, and how far the\nperson has got checking its cleaning sample (`checked` of `sample`, `clean` of those).",
+    "properties": {
+     "checked": {
+      "title": "Checked",
+      "type": "integer"
+     },
+     "clean": {
+      "title": "Clean",
+      "type": "integer"
+     },
+     "first": {
+      "format": "date-time",
+      "title": "First",
+      "type": "string"
+     },
+     "last": {
+      "format": "date-time",
+      "title": "Last",
+      "type": "string"
+     },
+     "medium": {
+      "title": "Medium",
+      "type": "string"
+     },
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "sample": {
+      "title": "Sample",
+      "type": "integer"
+     },
+     "trivial": {
+      "title": "Trivial",
+      "type": "integer"
+     },
+     "words": {
+      "title": "Words",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "medium",
+     "rows",
+     "trivial",
+     "words",
+     "first",
+     "last",
+     "sample",
+     "checked",
+     "clean"
+    ],
+    "title": "MediumCount",
     "type": "object"
    },
    "Page_PromptOut_": {
@@ -298,6 +387,46 @@
     "title": "Page[UploadOut]",
     "type": "object"
    },
+   "Page_WritingOut_": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/WritingOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "next": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next"
+     },
+     "total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total"
+     }
+    },
+    "required": [
+     "items",
+     "next",
+     "total"
+    ],
+    "title": "Page[WritingOut]",
+    "type": "object"
+   },
    "Problem": {
     "description": "One reason a take should be recorded again, in words the speaker can act on.",
     "properties": {
@@ -402,6 +531,30 @@
     "title": "PromptOut",
     "type": "object"
    },
+   "Removed": {
+    "description": "A span taken out of a mail's original text (clean.py): `quote`, `forward`, `signature` or `client`.",
+    "properties": {
+     "end": {
+      "title": "End",
+      "type": "integer"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "start": {
+      "title": "Start",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "kind",
+     "start",
+     "end"
+    ],
+    "title": "Removed",
+    "type": "object"
+   },
    "ServiceStatus": {
     "description": "Another strata service this app calls, as its health endpoint answered just now.",
     "properties": {
@@ -452,6 +605,10 @@
    },
    "StratavoiceSettings": {
     "properties": {
+     "assistant_since": {
+      "title": "Assistant Since",
+      "type": "string"
+     },
      "consented_on": {
       "title": "Consented On",
       "type": "string"
@@ -469,13 +626,34 @@
      "recordings_dir": {
       "title": "Recordings Dir",
       "type": "string"
+     },
+     "writing_context": {
+      "title": "Writing Context",
+      "type": "string"
+     },
+     "writing_emails": {
+      "title": "Writing Emails",
+      "type": "string"
+     },
+     "writing_source": {
+      "title": "Writing Source",
+      "type": "string"
+     },
+     "writing_url": {
+      "title": "Writing Url",
+      "type": "string"
      }
     },
     "required": [
      "recordings_dir",
      "consented_on",
      "max_take_seconds",
-     "espeak"
+     "espeak",
+     "writing_url",
+     "writing_source",
+     "writing_context",
+     "writing_emails",
+     "assistant_since"
     ],
     "title": "StratavoiceSettings",
     "type": "object"
@@ -1104,6 +1282,233 @@
      }
     },
     "title": "WriteIn",
+    "type": "object"
+   },
+   "WritingOut": {
+    "description": "One thing the person wrote, as cleaned (the fields are explained in models.Writing). `original` is null when\nnothing was taken out of it; `removed` are offsets into it.",
+    "properties": {
+     "assisted": {
+      "title": "Assisted",
+      "type": "boolean"
+     },
+     "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+     },
+     "checked_as": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Checked As"
+     },
+     "flags": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Flags",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "medium": {
+      "title": "Medium",
+      "type": "string"
+     },
+     "original": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Original"
+     },
+     "parts": {
+      "title": "Parts",
+      "type": "integer"
+     },
+     "platform": {
+      "title": "Platform",
+      "type": "string"
+     },
+     "removed": {
+      "items": {
+       "$ref": "#/components/schemas/Removed"
+      },
+      "title": "Removed",
+      "type": "array"
+     },
+     "sample": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sample"
+     },
+     "split": {
+      "title": "Split",
+      "type": "string"
+     },
+     "subject": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Subject"
+     },
+     "text": {
+      "title": "Text",
+      "type": "string"
+     },
+     "trivial": {
+      "title": "Trivial",
+      "type": "boolean"
+     },
+     "words": {
+      "title": "Words",
+      "type": "integer"
+     },
+     "work": {
+      "title": "Work",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "at",
+     "platform",
+     "kind",
+     "medium",
+     "work",
+     "subject",
+     "text",
+     "original",
+     "removed",
+     "parts",
+     "words",
+     "trivial",
+     "flags",
+     "split",
+     "assisted",
+     "sample",
+     "checked_as"
+    ],
+    "title": "WritingOut",
+    "type": "object"
+   },
+   "WritingSummary": {
+    "description": "What the writing holds: rows by medium, split, year and flag; the frozen split's cutoff and held-out\nrecipients; when it was last built and the newest build job (null: never built).",
+    "properties": {
+     "assisted": {
+      "title": "Assisted",
+      "type": "integer"
+     },
+     "built": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Built"
+     },
+     "cutoff": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cutoff"
+     },
+     "flags": {
+      "items": {
+       "$ref": "#/components/schemas/Count"
+      },
+      "title": "Flags",
+      "type": "array"
+     },
+     "holdout": {
+      "title": "Holdout",
+      "type": "integer"
+     },
+     "job": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Task"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "mediums": {
+      "items": {
+       "$ref": "#/components/schemas/MediumCount"
+      },
+      "title": "Mediums",
+      "type": "array"
+     },
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "splits": {
+      "items": {
+       "$ref": "#/components/schemas/Count"
+      },
+      "title": "Splits",
+      "type": "array"
+     },
+     "years": {
+      "items": {
+       "$ref": "#/components/schemas/Count"
+      },
+      "title": "Years",
+      "type": "array"
+     }
+    },
+    "required": [
+     "built",
+     "rows",
+     "assisted",
+     "mediums",
+     "splits",
+     "years",
+     "flags",
+     "cutoff",
+     "holdout",
+     "job"
+    ],
+    "title": "WritingSummary",
     "type": "object"
    },
    "Written": {
@@ -2395,6 +2800,277 @@
      }
     },
     "summary": "Get Upload"
+   }
+  },
+  "/api/writing": {
+   "get": {
+    "operationId": "get_writing_api_writing_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WritingSummary"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Writing"
+   }
+  },
+  "/api/writing/build": {
+   "post": {
+    "operationId": "post_writing_build_api_writing_build_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Post Writing Build"
+   }
+  },
+  "/api/writing/check": {
+   "get": {
+    "operationId": "get_writing_check_api_writing_check_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "medium",
+      "required": true,
+      "schema": {
+       "title": "Medium",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/WritingOut"
+         },
+         "title": "Response Get Writing Check Api Writing Check Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Writing Check"
+   }
+  },
+  "/api/writing/page": {
+   "get": {
+    "operationId": "get_writing_page_api_writing_page_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "medium",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Medium"
+      }
+     },
+     {
+      "in": "query",
+      "name": "year",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Year"
+      }
+     },
+     {
+      "in": "query",
+      "name": "trivial",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Trivial"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Page_WritingOut_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Writing Page"
+   }
+  },
+  "/api/writing/{writing_id}/check": {
+   "delete": {
+    "operationId": "delete_writing_check_api_writing__writing_id__check_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "writing_id",
+      "required": true,
+      "schema": {
+       "title": "Writing Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WritingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Writing Check"
+   },
+   "post": {
+    "operationId": "post_writing_check_api_writing__writing_id__check_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "writing_id",
+      "required": true,
+      "schema": {
+       "title": "Writing Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WritingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Writing Check"
    }
   }
  }

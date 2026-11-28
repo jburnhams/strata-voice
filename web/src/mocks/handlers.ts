@@ -21,6 +21,9 @@ import {
   type Upload,
   type UploadPage,
   usable,
+  type Writing,
+  type WritingPage,
+  type WritingSummary,
 } from '../api'
 import { coverageSample } from './coverage-sample'
 import {
@@ -42,6 +45,7 @@ import {
   uncheckedScore,
   written,
 } from './fixtures'
+import { buildJob, manyWriting, runningBuild, writingBare, writingNever, writingRows, writingSummary } from './writing-sample'
 
 /** What the mock server holds. Writes change it, so a test can keep a take and see the queue move on. */
 export const mock = {
@@ -51,6 +55,8 @@ export const mock = {
   coverage: { ...coverageSample } as Coverage,
   uploads: [kitchenUpload] as Upload[],
   sentences: [...kitchenSentences] as Take[],
+  writing: { ...writingSummary } as WritingSummary,
+  writingRows: writingRows.map(w => ({ ...w })) as Writing[],
 }
 
 /** Back to the healthy state: call between tests and stories. */
@@ -61,6 +67,8 @@ export function resetMock() {
   mock.coverage = { ...coverageSample }
   mock.uploads = [kitchenUpload]
   mock.sentences = [...kitchenSentences]
+  mock.writing = { ...writingSummary }
+  mock.writingRows = writingRows.map(w => ({ ...w }))
 }
 
 // Matched as paths, so they answer whatever origin and base the app runs under.
@@ -89,6 +97,11 @@ export const paths = {
   job: '/api/jobs/:id',
   jobCancel: '/api/jobs/:id/cancel',
   jobRetry: '/api/jobs/:id/retry',
+  writing: '/api/writing',
+  writingBuild: '/api/writing/build',
+  writingPage: '/api/writing/page',
+  writingCheck: '/api/writing/check',
+  writingMark: '/api/writing/:id/check',
 } as const
 
 const withTakes = (p: Prompt): Prompt => ({ ...p, takes: mock.takes.filter(t => t.prompt_id === p.id).length })
@@ -148,6 +161,38 @@ export function uploadPage(url: string, list: Upload[]): UploadPage {
   const rest = after === null ? sorted : sorted.filter(u => u.id < Number(after))
   const items = rest.slice(0, limit)
   return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
+}
+
+/** Serves `GET /api/writing/page`, newest first and filtered, as corpus.page does. */
+export function writingPage(url: string, list: Writing[]): WritingPage {
+  const params = new URL(url).searchParams
+  const after = params.get('after')
+  const limit = Number(params.get('limit') ?? 20)
+  const medium = params.get('medium')
+  const year = params.get('year')
+  const trivial = params.get('trivial')
+  const rest = [...list]
+    .sort((a, b) => b.id - a.id)
+    .filter(w => after === null || w.id < Number(after))
+    .filter(w => !medium || w.medium === medium)
+    .filter(w => !year || w.at.startsWith(year))
+    .filter(w => trivial === null || String(w.trivial) === trivial)
+  const items = rest.slice(0, limit)
+  return { items, next: rest.length > limit ? String(items[items.length - 1].id) : null, total: null }
+}
+
+/** Marks a row as corpus.check does, and moves its medium's count of checked rows. */
+function mark(id: number, verdict: string | null) {
+  const found = mock.writingRows.find(w => w.id === id)
+  if (!found) return refused(`There is no writing ${id}.`, 404)
+  const changed = { ...found, checked_as: verdict }
+  mock.writingRows = mock.writingRows.map(w => (w === found ? changed : w))
+  const step = Number(verdict !== null) - Number(found.checked_as !== null)
+  mock.writing = {
+    ...mock.writing,
+    mediums: mock.writing.mediums.map(m => (m.medium === found.medium ? { ...m, checked: m.checked + step } : m)),
+  }
+  return HttpResponse.json(changed)
 }
 
 const refused = (detail: string, status = 400) => HttpResponse.json({ detail, payload: null }, { status })
@@ -237,12 +282,39 @@ export const handlers = [
     return HttpResponse.json(found)
   }),
   http.get(at(paths.job), ({ params }) => {
+    // A build the mock was asked for finishes as soon as it is asked about.
+    if (params.id === String(buildJob.id) && mock.writing.job) {
+      mock.writing = { ...mock.writing, job: buildJob }
+      return HttpResponse.json(buildJob)
+    }
+    // The build a story or shot shows part way through stays there.
+    if (params.id === String(runningBuild.id)) return HttpResponse.json(runningBuild)
     // The every-state fixtures too, which a story serves from its own handler rather than from `mock`.
     const found = [...mock.uploads, talkUpload, failedUpload].find(u => u.job && String(u.job.id) === params.id)?.job
     return found ? HttpResponse.json(found) : refused(`there is no job ${String(params.id)}`, 404)
   }),
   http.post(at(paths.jobCancel), ({ params }) => jobTo(String(params.id), { state: 'cancelled', finished_at: '2026-11-26T08:01:00Z' })),
   http.post(at(paths.jobRetry), ({ params }) => jobTo(String(params.id), { state: 'queued', error: null, finished_at: null })),
+  http.get(at(paths.writing), () => HttpResponse.json(mock.writing)),
+  http.post(at(paths.writingBuild), () => {
+    const queued = { ...buildJob, state: 'queued' as const, started_at: null, finished_at: null, progress: null }
+    mock.writing = { ...mock.writing, job: queued }
+    return HttpResponse.json(queued)
+  }),
+  http.get(at(paths.writingPage), ({ request }) => HttpResponse.json(writingPage(request.url, mock.writingRows))),
+  http.get(at(paths.writingCheck), ({ request }) => {
+    const medium = new URL(request.url).searchParams.get('medium')
+    return HttpResponse.json(
+      mock.writingRows
+        .filter(w => w.medium === medium && w.sample !== null && w.checked_as === null)
+        .sort((a, b) => Number(a.sample) - Number(b.sample)),
+    )
+  }),
+  http.post(at(paths.writingMark), async ({ request, params }) => {
+    const { verdict } = (await request.json()) as { verdict: string }
+    return mark(Number(params.id), verdict)
+  }),
+  http.delete(at(paths.writingMark), ({ params }) => mark(Number(params.id), null)),
   http.delete(at(paths.take), ({ params }) => {
     const found = mock.takes.find(t => t.id === Number(params.id))
     if (!found) return refused(`There is no take ${String(params.id)}.`, 404)
@@ -269,6 +341,12 @@ function accept(id: number, accepted: boolean) {
 /** Moves an upload's job to another state, as the queue's cancel and retry do. */
 function jobTo(id: string, change: Partial<NonNullable<Upload['job']>>) {
   const found = mock.uploads.find(u => u.job && String(u.job.id) === id)
+  if (id === String(buildJob.id) && mock.writing.job) {
+    const job = { ...mock.writing.job, ...change }
+    mock.writing = { ...mock.writing, job }
+    return HttpResponse.json(job)
+  }
+  if (id === String(runningBuild.id)) return HttpResponse.json({ ...runningBuild, ...change })
   if (!found?.job) return refused(`there is no job ${id}`, 404)
   const job = { ...found.job, ...change }
   mock.uploads = mock.uploads.map(u => (u === found ? { ...u, job } : u))
@@ -368,3 +446,30 @@ export const uploadsEveryState = http.get(at(paths.uploadsPage), ({ request }) =
 export const uploadRefused = http.post(at(paths.uploads), ({ request }) =>
   refused(`${new URL(request.url).searchParams.get('name')} is not a recording ffmpeg can read.`),
 )
+
+export const writingLoading = http.get(at(paths.writing), () => delay('infinite'))
+export const writingError = http.get(at(paths.writing), down)
+/** Never built: the screen offers the first build. */
+export const writingNeverBuilt = http.get(at(paths.writing), () => HttpResponse.json(writingNever))
+/** A build waiting to run. */
+export const writingBuilding = http.get(at(paths.writing), () => HttpResponse.json({ ...mock.writing, job: runningBuild }))
+/** The newest build failed: the views were not there. */
+export const writingBuildFailed = http.get(at(paths.writing), () =>
+  HttpResponse.json({
+    ...writingNever,
+    job: {
+      ...buildJob,
+      state: 'failed',
+      error:
+        'unified.my_writing could not be read (no such table): build it with strata-takeout (`strata-takeout-unified build`), or set `writing_source`.',
+    },
+  }),
+)
+export const writingPageEmpty = http.get(at(paths.writingPage), () => HttpResponse.json({ items: [], next: null, total: null }))
+export const writingPageError = http.get(at(paths.writingPage), down)
+export const writingCheckError = http.get(at(paths.writingCheck), down)
+export const writingMarkFails = http.post(at(paths.writingMark), down)
+/** Built with no sample to check, no flags and nothing assisted. */
+export const writingNoSample = http.get(at(paths.writing), () => HttpResponse.json(writingBare))
+/** 70 pieces of chat: three pages. */
+export const writingMany = http.get(at(paths.writingPage), ({ request }) => HttpResponse.json(writingPage(request.url, manyWriting)))

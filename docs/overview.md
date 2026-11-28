@@ -2,7 +2,7 @@
 
 ## 1. Goal
 
-Capture a person's voice well enough to build a model of it: spoken first, written later. The material is mostly text archives with some audio. Step one is a recording studio that asks for the right sentences, keeps every take as a lossless master, and (in later steps) crops, recognises and scores each take so it can ask again for the ones that fall short.
+Capture a person's voice well enough to build a model of it: spoken first, written later. The material is mostly text archives with some audio. The written voice starts from everything the person sent, read from strata-takeout's views and built into a cleaned, split corpus ([written-voice.md](written-voice.md)). Step one is a recording studio that asks for the right sentences, keeps every take as a lossless master, and (in later steps) crops, recognises and scores each take so it can ask again for the ones that fall short.
 
 Constraints: local first. The takes never leave the speaker's computer. Cloud models (Claude, OpenAI, Gemini) may write prompts; recognition and scoring run locally. Model hosting and evaluation belong to [strata-models](https://github.com/jburnhams/strata-models); this app orchestrates (asks for prompts, sends takes to be scored, decides what to ask for next).
 
