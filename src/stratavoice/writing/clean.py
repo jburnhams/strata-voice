@@ -10,6 +10,11 @@ kept exactly as written, because spelling, casing, emoji and line breaks are the
 Everything is a span of the original (`kind, start, end`), never a rewrite, so the screen can show the original with
 what was taken out struck through, and the person can check the rules (corpus.SAMPLE_SIZE per medium).
 
+One exception to "never a rewrite": a line break the mail client put in. Plain-text mail was wrapped at a fixed width
+(about 70 to 78 characters) when it was sent, so a paragraph arrives cut into lines the person never typed. When a
+mail's kept lines look wrapped (`wrap_width`), each such break is a `wrap` span (the spaces around it and the line end)
+and is put back as one space; a break the person typed (a short line, a blank line, a list item) stays.
+
 A sign-off ("Thanks,\\nJonathan") is part of a voice and stays. A signature is told from it by repetition and shape:
 the same trailing lines in at least `SIGNATURE_REPEATS` of the person's mails (`learn_signatures`) that are three or
 more lines, or hold contact details (a phone number, an address, a web or mail address)."""
@@ -17,11 +22,13 @@ more lines, or hold contact details (a phone number, an address, a web or mail a
 import re
 from collections import Counter
 from collections.abc import Iterable
+from itertools import pairwise
 
 QUOTE = "quote"
 FORWARD = "forward"
 SIGNATURE = "signature"
 CLIENT = "client"
+WRAP = "wrap"  # a line break the mail client added at a fixed width: rejoined with one space
 
 Span = tuple[str, int, int]
 
@@ -43,6 +50,12 @@ CLIENT_LINE = re.compile(
 )
 CONTACT = re.compile(r"@|www\.|https?://|\d[\d ()+\-]{7,}\d|\b(tel|mob|mobile|fax|ltd|limited)\b", re.I)
 WORD = re.compile(r"\w+")
+
+WRAP_WIDTHS = (40, 100)  # the widths a mail client wraps plain text at
+WRAP_NEAR = 12  # a wrapped line ends within this many characters of the width
+WRAP_SHARE = 0.4  # of a mail's lines with a space in them, at least this share must end near the width
+LONG_WORD = 20  # a word this long (a link) moves to the next line whatever the line's length
+NOT_WRAPPED = re.compile(r"\s|[>*•\-]|\d+[.)]\s")  # a line starting like this was started by the person
 
 
 def _lines(text: str) -> list[tuple[int, str]]:
@@ -103,9 +116,55 @@ def _trailing(text: str, spans: list[Span]) -> list[tuple[int, int, str]]:
     return kept
 
 
-def clean_email(text: str, signatures: frozenset[tuple[str, ...]] = frozenset()) -> tuple[str, list[Span]]:
+def wrap_width(lines: Iterable[str]) -> int | None:
+    """The width the lines were wrapped at, or None when they do not look wrapped: of the lines with a space (a line
+    without one, such as a link, cannot be wrapped), at least `WRAP_SHARE` end within `WRAP_NEAR` of the longest."""
+    body = [line.rstrip() for line in lines if " " in line.strip()]
+    if len(body) < 3:
+        return None
+    w = max(len(line) for line in body)
+    if not WRAP_WIDTHS[0] <= w <= WRAP_WIDTHS[1]:
+        return None
+    near = sum(1 for line in body if len(line) >= w - WRAP_NEAR)
+    return w if near >= max(2, WRAP_SHARE * len(body)) else None
+
+
+def _soft(line: str, nxt: str, width: int) -> bool:
+    """Whether the break between `line` and `nxt` is the client's: `nxt` starts with a word, and that word would not
+    have fitted on `line` (a long line, or a long word such as a link)."""
+    a = line.rstrip()
+    if not a or not nxt.strip() or NOT_WRAPPED.match(nxt):
+        return False
+    first = nxt.split()[0]
+    return len(a) + 1 + len(first) > width - 2 and (len(a) >= width - WRAP_NEAR - 3 or len(first) >= LONG_WORD)
+
+
+def _wraps(text: str, spans: list[Span]) -> list[Span]:
+    """The `wrap` spans of the text's kept lines (outside every span in `spans`)."""
+
+    def taken(at: int) -> bool:
+        return any(s <= at < e for _, s, e in spans)
+
+    ls = [(at, line) for at, line in _lines(text) if not taken(at)]
+    width = wrap_width(line for _, line in ls)
+    if width is None:
+        return []
+    out: list[Span] = []
+    for (at, line), (nat, nxt) in pairwise(ls):
+        end = at + len(line)
+        if nat > end + 2 or taken(end) or not _soft(line, nxt, width):  # another line between them: not a pair
+            continue
+        start = at + len(line.rstrip())
+        out.append((WRAP, start, nat + len(nxt) - len(nxt.lstrip())))
+    return out
+
+
+def clean_email(
+    text: str, signatures: frozenset[tuple[str, ...]] = frozenset(), rejoin: bool = True
+) -> tuple[str, list[Span]]:
     """The person's own words of a mail body and the spans taken out of it (see the module docstring). `signatures`
-    are the trailing blocks `learn_signatures` found in their mail."""
+    are the trailing blocks `learn_signatures` found in their mail; `rejoin` puts the client's line breaks back
+    together (off when learning signatures, which are matched line by line)."""
     ls = _lines(text)
     spans: list[Span] = []
     cut: tuple[int, str] | None = None  # everything from this line on is someone else's
@@ -150,10 +209,14 @@ def clean_email(text: str, signatures: frozenset[tuple[str, ...]] = frozenset())
             spans.append((SIGNATURE, kept[-k][0], kept[-1][1]))
             break
     spans = _merge(spans)
+    if rejoin:
+        spans = sorted(spans + _wraps(text, spans), key=lambda s: s[1])
     out: list[str] = []
     at = 0
-    for _, start, end in spans:
+    for kind, start, end in spans:
         out.append(text[at:start])
+        if kind == WRAP:
+            out.append(" ")
         at = end
     out.append(text[at:])
     return "".join(out).rstrip(), spans

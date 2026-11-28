@@ -179,6 +179,7 @@ const removedNames: Record<string, string> = {
   forward: 'a forwarded message',
   signature: 'a signature',
   client: 'a mail app’s footer',
+  wrap: 'a line break the mail app added',
 }
 
 /** What cleaning took out, in words. */

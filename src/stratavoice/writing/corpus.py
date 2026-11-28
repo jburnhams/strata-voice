@@ -244,7 +244,7 @@ def _chats(src: Engine, rows: list[Written]) -> Iterator[Entry]:
 
 def _emails(src: Engine, rows: list[Written]) -> tuple[list[Entry], int]:
     """The mails, cleaned; and how many signatures were learnt from them."""
-    first = [clean.clean_email(w.text)[0] for w in rows]
+    first = [clean.clean_email(w.text, rejoin=False)[0] for w in rows]
     signatures = clean.learn_signatures(first)
     replied = sources.replied_to(src, (w.in_reply_to for w in rows if w.in_reply_to))
     out: list[Entry] = []
