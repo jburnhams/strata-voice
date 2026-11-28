@@ -9,8 +9,8 @@ def cut(text: str, kept: str, *kinds: str, signatures: frozenset[tuple[str, ...]
     assert [k for k, _, _ in spans] == list(kinds)
     # Every span is a piece of the original, and the kept text is the original without them.
     rebuilt, at = "", 0
-    for _, start, end in spans:
-        rebuilt += text[at:start]
+    for kind, start, end in spans:
+        rebuilt += text[at:start] + (" " if kind == clean.WRAP else "")  # a client's line break comes back as a space
         at = end
     assert (rebuilt + text[at:]).rstrip() == kept
 
@@ -102,3 +102,68 @@ def test_spans_that_touch_or_are_empty_are_merged_or_dropped() -> None:
     assert clean._merge([("quote", 5, 9), ("quote", 3, 3), ("signature", 8, 12), ("client", 12, 14)]) == [
         ("quote", 5, 14)
     ]  # pyright: ignore[reportPrivateUsage]
+
+
+# A paragraph as a mail client sent it: wrapped at about 72 characters, each line ending with a space before the break.
+WRAPPED = (
+    "The garden committee meets on Thursday evening in the hall behind the \n"
+    "library, and the agenda covers the new benches and the spring planting. \n"
+    "\n"
+    "Bring a list of the plants you would like to see by the pond, and if you \n"
+    "cannot come then send it to the secretary before the end of next week. \n"
+    "\n"
+    "Best wishes, \n"
+    "Sam."
+)
+
+
+def test_a_mail_wrapped_at_a_fixed_width_is_rejoined() -> None:
+    cut(
+        WRAPPED,
+        "The garden committee meets on Thursday evening in the hall behind the library, and the agenda covers the new "
+        "benches and the spring planting. \n\nBring a list of the plants you would like to see by the pond, and if you "
+        "cannot come then send it to the secretary before the end of next week. \n\nBest wishes, \nSam.",
+        "wrap",
+        "wrap",
+    )  # the blank lines and the sign-off's break are the person's: they stay
+
+
+def test_a_link_pushed_to_the_next_line_is_rejoined() -> None:
+    text = (
+        "The minutes of the meeting are ready now and everyone should have a look \n"
+        "at them before the next one, especially the part about the new benches. \n"
+        "They are on the shared drive at this address \n"
+        "https://files.example.org/committee/minutes/2020/spring-meeting.pdf and \n"
+        "I can print a copy for anyone who would rather read them on paper."
+    )
+    got, spans = clean.clean_email(text)
+    assert [k for k, _, _ in spans] == ["wrap"] * 4
+    assert "\n" not in got
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "short lines\nstay as they are\nbecause nobody\nwrapped them",  # no width
+        "A list of things that we need to buy for the weekend away in Wales:\n- tent pegs and a mallet\n"
+        "- the big cool box\n- two camping chairs, the stove and gas for it, and the lantern",  # list items
+        "a line that is long enough to look like it was wrapped by a mail app\n"
+        "> a quoted line that is long enough to look like it was wrapped too\n",  # a quote is not the person's
+    ],
+)
+def test_breaks_the_person_typed_stay(text: str) -> None:
+    assert clean.WRAP not in [k for k, _, _ in clean.clean_email(text)[1]]
+
+
+def test_wrap_width() -> None:
+    lines = WRAPPED.splitlines()
+    assert clean.wrap_width(lines) == 72  # the longest line with a space, its trailing space off
+    assert clean.wrap_width(["a b", "c d"]) is None  # too few lines
+    assert clean.wrap_width(["x " * 70] * 3) is None  # wider than any client wraps
+    assert clean.wrap_width(["one two three four five six seven eight nine ten eleven"] + ["a b"] * 9) is None
+
+
+def test_rejoin_off_keeps_every_break() -> None:
+    got, spans = clean.clean_email(WRAPPED, rejoin=False)
+    assert got == WRAPPED
+    assert spans == []
