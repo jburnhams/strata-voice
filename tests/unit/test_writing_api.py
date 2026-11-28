@@ -88,15 +88,15 @@ def test_writing_settings_are_checked(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert settings.writing_tables() == ("unified.my_writing", "unified.messages_all", "unified.emails_all")
     assert settings.writing_url() == ""
-    assert str(settings.assistant_since()) == "2022-11-30"
+    assert settings.assistant_since() is None  # nothing is marked unless a day is set
     # A name that is not a plain identifier never reaches SQL: the override is ignored for the default.
     monkeypatch.setenv("STRATAVOICE_WRITING_SOURCE", "x; drop table writing")
     assert settings.writing_tables()[0] == "unified.my_writing"
     with pytest.raises(ValueError, match="not a table name"):
         settings.table_name("x; drop table writing")
     assert settings.table_name(" my_writing ") == "my_writing"
-    monkeypatch.setenv("STRATAVOICE_ASSISTANT_SINCE", "")
-    assert settings.assistant_since() is None
+    monkeypatch.setenv("STRATAVOICE_ASSISTANT_SINCE", "2022-11-30")
+    assert str(settings.assistant_since()) == "2022-11-30"
 
 
 def test_the_corpus_command_names_the_flags(

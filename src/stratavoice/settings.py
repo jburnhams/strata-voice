@@ -21,7 +21,8 @@ the shared database (`unified.my_writing`, `unified.messages_all`, `unified.emai
                      lines in a row from a reply in between, and a chat with one person from a group.
   writing_emails     every mail, so the mail a reply answers can be checked for quoted text left in the reply.
   assistant_since    the day the person may have started writing with AI help (YYYY-MM-DD); what they wrote from then
-                     on is marked `assisted` and kept out of the reference for their voice. Blank marks nothing.
+                     on is marked `assisted` and kept out of the reference for their voice. Blank (the default: the owner wrote
+                     their mail and chats without it, 2026-11-28) marks nothing.
 
 The file handling, precedence, validation and the `GET`/`PUT /api/settings` routes are
 [strata_python.settings](https://github.com/jburnhams/strata-python); this module only declares the app's settings."""
@@ -60,7 +61,7 @@ SETTINGS = Settings(
         Setting("writing_context", default="unified.messages_all", normalise=table_name),
         Setting("writing_emails", default="unified.emails_all", normalise=table_name),
         # ChatGPT's public release: before it, nothing the person sent can have been written with an assistant's help.
-        Setting("assistant_since", default="2022-11-30", normalise=iso_date(allow_blank=True)),
+        Setting("assistant_since", default="", normalise=iso_date(allow_blank=True)),
     ],
     numbers=True,
 )

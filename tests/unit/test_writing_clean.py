@@ -102,3 +102,53 @@ def test_spans_that_touch_or_are_empty_are_merged_or_dropped() -> None:
     assert clean._merge([("quote", 5, 9), ("quote", 3, 3), ("signature", 8, 12), ("client", 12, 14)]) == [
         ("quote", 5, 14)
     ]  # pyright: ignore[reportPrivateUsage]
+
+
+WRAPPED = (
+    "Thanks for sending the plans over, I had a good look at them on the train\n"
+    "this morning and I think the kitchen layout works much better than the\n"
+    "last version.\n"
+    "\n"
+    "Two things:\n"
+    "- the window\n"
+    "- the door\n"
+    "J"
+)
+
+
+def test_lines_a_client_wrapped_are_joined_and_the_persons_own_breaks_kept() -> None:
+    assert clean.unwrap(WRAPPED) == (
+        "Thanks for sending the plans over, I had a good look at them on the train this morning and I think the "
+        "kitchen layout works much better than the last version.\n\nTwo things:\n- the window\n- the door\nJ"
+    )
+
+
+def test_words_a_client_cut_at_the_column_are_mended() -> None:
+    paragraph = (
+        "the quarterly numbers are attached; the dip in week six is the warehouse move and it recovers by week "
+        "eight, as we expected it would, so nothing to worry about"
+    )
+    cut = "\n".join(paragraph[i : i + 64] for i in range(0, len(paragraph), 64))
+    assert "warehouse" not in cut  # a word is cut in two
+    assert clean.unwrap(cut + "\nThanks") == paragraph + "\nThanks"
+
+
+def test_flowed_lines_end_in_a_space_and_are_joined() -> None:
+    text = "short flowed line that is \ncontinued here and \nagain here, until the end of a sixty char\nline"
+    # The last break has no space before it, and the mail is too narrow to be wrapped: it is the person's own.
+    assert (
+        clean.unwrap(text)
+        == "short flowed line that is continued here and again here, until the end of a sixty char\nline"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "hiya\n\ni'll be there at 8 :)\nJ",  # short lines are the person's
+        "x" * 120 + "\n" + "y" * 90,  # a mail that was never wrapped: lines longer than any wrap
+        "One line that is long enough to look like a wrapped line in a mail\nok",  # one break is not a pattern
+    ],
+)
+def test_a_mail_that_was_not_wrapped_is_left_alone(text: str) -> None:
+    assert clean.unwrap(text) == text

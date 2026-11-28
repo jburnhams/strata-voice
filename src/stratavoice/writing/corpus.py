@@ -250,6 +250,7 @@ def _emails(src: Engine, rows: list[Written]) -> tuple[list[Entry], int]:
     out: list[Entry] = []
     for w in rows:
         kept, spans = clean.clean_email(w.text, signatures)
+        kept = clean.unwrap(kept)  # the client's line breaks, not the person's
         addresses = sorted({a.lower() for a in (w.recipients or "").split() if a})
         e = Entry(
             platform=w.platform,
